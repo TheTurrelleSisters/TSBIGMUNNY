@@ -398,7 +398,10 @@ async function executeSpin(betPerLine, linesActive, denom, creditsPerLine) {
   if (creditsPerLine) GameState.lastCreditsPerLine = _credits;
 
   contributeToJackpots(totalBet);
-  if (typeof Progressive !== 'undefined') Progressive.contribute(totalBet);
+  var _tsForceArmed = false;
+  if (typeof Progressive !== 'undefined') {
+    _tsForceArmed = Progressive.contribute(totalBet);
+  }
   startGameRecord({ perLine: betPerLine, lines: linesActive, total: totalBet });
   logEvent('SPIN_START', { bet: { perLine: betPerLine, lines: linesActive, total: totalBet }, serialNumber: _currentSpinSerial, balanceBefore: GameState.balance + totalBet });
 
@@ -552,6 +555,21 @@ async function executeSpin(betPerLine, linesActive, denom, creditsPerLine) {
     result.progressiveHitAmt   = _progAmt;
   }
   // ── END PROGRESSIVE CHECK ─────────────────────────────────────────────
+
+  // ── FORCE JACKPOT CHECK — Turrelle Sisters ───────────────────────────
+  // If operator armed a force jackpot, claim it and force STRAYPUP 5OAK.
+  if (_tsForceArmed && typeof Progressive !== 'undefined' && !result.progressiveHit) {
+    Progressive.claimForce(function(didWin, forceAmt) {
+      if (!didWin) return;
+      // Credit the force amount and show win celebration
+      GameState.balance += forceAmt;
+      result.progressiveHit    = true;
+      result.progressiveHitAmt = forceAmt;
+      result.forceJackpot      = true;
+      if (typeof UI !== 'undefined') UI.updateBalance(GameState.balance);
+    });
+  }
+  // ── END FORCE JACKPOT CHECK ────────────────────────────────────────────
 
   if (result.paylineWins.length > 0 || result.scatterWin) {
     if (!_skipPaylineAnimations) {
