@@ -7,6 +7,8 @@
        This inline block simply nukes everything — the SW will rebuild the correct cache.
        NEVER hardcode a specific cache name here. CACHE_NAME lives in service-worker.js ONLY. -->
   <script>
+    <script src="progressive.js?v=1.3"></script>
+<script src="broadcast-init.js?v=1.0"></script>
     // ── GAME VERSION — single source of truth in index.html ───────────────
     // MANDATORY RULE: Update GAME_VERSION on every build alongside CACHE_NAME.
     // This is displayed on the splash screen and used for cache validation.
