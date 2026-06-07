@@ -229,9 +229,9 @@ body{
   height:48px;min-height:44px;flex-shrink:0;
 overflow:hidden;
 }
-#win-box{flex:1;background:linear-gradient(135deg,rgba(12,4,18,0.97),rgba(8,2,14,0.99));border:1px solid var(--gold-border);border-radius:8px;padding:2px 8px;text-align:center;height:100%;display:flex;flex-direction:column;justify-content:center;box-shadow:inset 0 1px 0 rgba(201,153,58,0.15);}
-#win-label{font-size:8px;color:var(--text-dim);letter-spacing:3px;text-transform:uppercase;font-family:var(--font-display);}
-#win-amount{font-family:var(--font-num);font-size:18px;font-weight:700;color:var(--win-green);text-shadow:0 0 12px var(--win-glow);}
+#win-box{flex:1;background:linear-gradient(135deg,rgba(12,4,18,0.97),rgba(8,2,14,0.99));border:1px solid var(--gold-border);border-radius:8px;padding:4px 10px;text-align:center;height:100%;display:flex;flex-direction:column;justify-content:center;box-shadow:inset 0 1px 0 rgba(201,153,58,0.15);}
+#win-label{font-size:9px;color:var(--gold-dim,#c9993a88);letter-spacing:3px;text-transform:uppercase;font-family:var(--font-display);}
+#win-amount{font-family:var(--font-num);font-size:20px;font-weight:700;color:var(--win-green);text-shadow:0 0 12px var(--win-glow);}
 #win-amount.pop{animation:winPop 0.4s ease;}
 @keyframes winPop{0%{transform:scale(1);}50%{transform:scale(1.25);}100%{transform:scale(1);}}
 @-webkit-keyframes winPop {0%{transform:scale(1);}50%{transform:scale(1.25);}100%{transform:scale(1);}}
@@ -1481,15 +1481,22 @@ body.desktop-gutter-b {
 
 /* bet-stat / bet-label styles kept for LINES / BET/LINE / TOTAL BET display — v8.1.52: #bet-display removed (dead element) */
 .bet-stat {
-  display: flex; flex-direction: column; align-items: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex: 1;
+  background: linear-gradient(135deg, rgba(12,4,18,0.95), rgba(8,2,14,0.98));
+  border: 1px solid var(--gold-border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  min-width: 0;
 }
 .bet-label {
-  font-size: 9px; color: var(--gold); letter-spacing: 1px;
-  text-transform: uppercase; font-weight: 700;
+  font-size: 8px; color: var(--gold-dim, #c9993a88); letter-spacing: 1.5px;
+  text-transform: uppercase; font-weight: 700; white-space: nowrap;
 }
 .bet-stat span:last-child {
-  font-family: var(--font-num); font-size: 15px;
-  font-weight: 900; color: #fff;
+  font-family: var(--font-num); font-size: 14px;
+  font-weight: 900; color: var(--gold-light);
+  white-space: nowrap;
 }
 
 #bet-one-btn {
@@ -1649,22 +1656,23 @@ body.desktop-gutter-b {
 /* Stats row */
 #bet-stats-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 8px;
-  gap: 6px;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 4px 6px;
+  gap: 4px;
   flex-shrink: 0;
+  width: 100%;
 }
 #bet-stats-left {
   display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
+  gap: 4px;
+  align-items: stretch;
+  flex: 1;
 }
 #bet-stats-right {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: stretch;
+  gap: 4px;
   flex-shrink: 0;
 }
 

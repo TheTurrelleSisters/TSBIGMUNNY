@@ -1208,26 +1208,8 @@ window.addEventListener('popstate', function(e) {
   function _doCloseGame() {
     saveState();
     Audio.stopAmbientMusic();
-    // If launched from QA launcher — return to it
-    if (LAUNCHER_RETURN_URL) {
-      window.location.href = LAUNCHER_RETURN_URL;
-      return;
-    }
-    // Attempt 1: window.close() — works in kiosk/WebView/script-opened tabs
-    try { window.close(); } catch(e) {}
-    // Attempt 2: after 350ms, if still open, try about:blank (works in some WebViews)
-    setTimeout(function() {
-      // Check if still alive (if window.close() worked we won't reach here)
-      try {
-        window.location.href = 'about:blank';
-      } catch(e2) {}
-      // Attempt 3: after another 350ms, show manual instruction
-      setTimeout(function() {
-        if (_exitManualMsg) _exitManualMsg.style.display = 'block';
-        if (_exitConfirmBtn) _exitConfirmBtn.style.display = 'none';
-        if (_exitCancelBtn)  _exitCancelBtn.textContent   = 'BACK TO GAME';
-      }, 350);
-    }, 350);
+    // Always route to Gold Coins Casino lobby
+    window.location.href = 'https://theturrellesisters.github.io/turrelle_gold_coins_casino/';
   }
 
   var _eb = $('exit-btn');
@@ -1293,7 +1275,7 @@ window.addEventListener('popstate', function(e) {
 <div id="exit-overlay">
   <div id="exit-box">
     <div id="exit-title">EXIT GAME</div>
-    <div id="exit-msg">Are you sure you want to exit?</div>
+    <div id="exit-msg">Return to The Turrelle Sisters Gold Coins Casino?</div>
     <div class="exit-btn-row">
       <button id="exit-confirm-btn">CLOSE GAME</button>
       <button id="exit-cancel-btn">CANCEL</button>
@@ -1392,5 +1374,9 @@ window.addEventListener('popstate', function(e) {
 }());
 </script>
 
+<div style="position:fixed;bottom:2px;left:0;right:0;text-align:center;
+font-size:7px;color:rgba(255,215,0,0.18);letter-spacing:2px;pointer-events:none;
+z-index:1;font-family:Arial,sans-serif;font-weight:normal">
+GOLD COINS CASINO &bull; v2.4</div>
 </body>
 </html>
