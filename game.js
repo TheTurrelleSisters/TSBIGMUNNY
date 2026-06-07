@@ -390,6 +390,7 @@ async function executeSpin(betPerLine, linesActive, denom, creditsPerLine) {
   if (creditsPerLine) GameState.lastCreditsPerLine = _credits;
 
   contributeToJackpots(totalBet);
+  if (typeof Progressive !== 'undefined') Progressive.contribute(totalBet);
   startGameRecord({ perLine: betPerLine, lines: linesActive, total: totalBet });
   logEvent('SPIN_START', { bet: { perLine: betPerLine, lines: linesActive, total: totalBet }, serialNumber: _currentSpinSerial, balanceBefore: GameState.balance + totalBet });
 

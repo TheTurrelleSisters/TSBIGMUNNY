@@ -257,6 +257,7 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 
   <!-- JACKPOT METERS — just above reels -->
   <div id="jackpot-bar">
+    <div class="jp-meter jp-prog-tile" id="jp-progressive"><div class="jp-label">PROG</div><div class="jp-amount" id="ts-prog-val">$500.00</div></div>
     <div class="jp-meter" id="jp-grand"><div class="jp-label">GRAND</div><div class="jp-amount">$2000.00</div></div>
     <div class="jp-meter" id="jp-major"><div class="jp-label">MAJOR</div><div class="jp-amount">$100.00</div></div>
     <div class="jp-meter" id="jp-minor"><div class="jp-label">MINOR</div><div class="jp-amount">$50.00</div></div>
@@ -1247,5 +1248,21 @@ window.addEventListener('popstate', function(e) {
   </div>
 </div>
 
+
+<script>
+  var PROG_GAME_ID = 'turrelle';
+  var PROG_DENOM   = 1.00;
+</script>
+<script src="progressive.js?v=8.1.58p"></script>
+<script>
+  // Init progressive meter display
+  if (typeof Progressive !== 'undefined') {
+    Progressive.onChange(function(val) {
+      var el = document.getElementById('ts-prog-val');
+      if (el) el.textContent = '$' + val.toFixed(2);
+    });
+    Progressive.init();
+  }
+</script>
 </body>
 </html>
