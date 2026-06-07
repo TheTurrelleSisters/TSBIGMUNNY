@@ -2,7 +2,8 @@
 var UI = (function() {
   function $(id) { return document.getElementById(id); }
   var reelEls = [], paylineCanvas = null, paylineCtx = null;
-  var pickTapCb = null;
+  // pickTapCb removed v8.1.36 — was dead variable (never written after init).
+  // Tile taps now correctly use _pickTapCallback (set by setPickTapCallback).
   var _skipCreditAnim = false;
   var isAnimatingCredits = false;
 
@@ -15,6 +16,7 @@ var UI = (function() {
     if (paylineCanvas) paylineCtx = paylineCanvas.getContext('2d');
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
+    _wireHelpButtons(); // v8.1.3: wire help menu buttons
   }
 
   function resizeCanvas() {
@@ -38,140 +40,14 @@ var UI = (function() {
     return '$' + v;
   }
 
-  function _makeCoinSVG(amt, jpLabel) {
-    var isJp = !!jpLabel;
-    var labelText = isJp ? jpLabel : (amt || '');
-    var fontSize  = isJp ? (labelText.length <= 4 ? 32 : 26)
-                         : (labelText.length <= 4 ? 40 : labelText.length <= 5 ? 34 : 28);
-    var textY     = 104;
-    var gradId    = 'lg_cv_' + Math.floor(Math.random() * 99999);
-    var gradDef   = isJp ? '' :
-      '<linearGradient id="' + gradId + '" x1="0%" y1="0%" x2="0%" y2="100%">' +
-        '<stop offset="0%" stop-color="#ffffff"/>' +
-        '<stop offset="40%" stop-color="#f5d878"/>' +
-        '<stop offset="100%" stop-color="#7a6000"/>' +
-      '</linearGradient>';
-    var filterId = isJp ? ('tg_cv_' + Math.floor(Math.random() * 99999)) : null;
-    var fillVal  = isJp ? 'url(#label_' + jpLabel.toLowerCase() + ')' : '#fff0c0';
-    var underline = '<line x1="62" y1="' + (textY + 9) + '" x2="138" y2="' + (textY + 9) + '" stroke="#f5d878" stroke-width="1.2" opacity="0.6"/>';
-
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="100%" height="100%">' +
-      '<defs>' +
-        '<radialGradient id="cvFace" cx="36%" cy="30%" r="68%">' +
-          '<stop offset="0%" stop-color="#fffde0"/>' +
-          '<stop offset="18%" stop-color="#f9ee80"/>' +
-          '<stop offset="45%" stop-color="#d4af37"/>' +
-          '<stop offset="72%" stop-color="#b8930a"/>' +
-          '<stop offset="100%" stop-color="#7a5c00"/>' +
-        '</radialGradient>' +
-        '<radialGradient id="cvRim" cx="50%" cy="50%" r="50%">' +
-          '<stop offset="0%" stop-color="#c8a820"/>' +
-          '<stop offset="100%" stop-color="#5a4000"/>' +
-        '</radialGradient>' +
-        '<linearGradient id="cvBg" x1="0%" y1="0%" x2="100%" y2="100%">' +
-          '<stop offset="0%" stop-color="#1a0d2e"/>' +
-          '<stop offset="100%" stop-color="#0a0818"/>' +
-        '</linearGradient>' +
-        '<linearGradient id="cvFrame" x1="0%" y1="0%" x2="0%" y2="100%">' +
-          '<stop offset="0%" stop-color="#fffde0"/>' +
-          '<stop offset="50%" stop-color="#d4af37"/>' +
-          '<stop offset="100%" stop-color="#7a5c00"/>' +
-        '</linearGradient>' +
-        '<radialGradient id="cvShine" cx="32%" cy="26%" r="48%">' +
-          '<stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>' +
-          '<stop offset="60%" stop-color="#ffffff" stop-opacity="0.08"/>' +
-          '<stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>' +
-        '</radialGradient>' +
-        '<filter id="cvGlow" x="-20%" y="-20%" width="140%" height="140%">' +
-          '<feGaussianBlur stdDeviation="4" result="blur"/>' +
-          '<feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>' +
-        '</filter>' +
-        (isJp ? ('<filter id="' + filterId + '">' +
-          '<feGaussianBlur stdDeviation="2" result="blur"/>' +
-          '<feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>' +
-        '</filter>') : '') +
-        gradDef +
-      '</defs>' +
-      '<rect width="200" height="200" rx="18" fill="url(#cvBg)"/>' +
-      '<rect x="3" y="3" width="194" height="194" rx="16" fill="none" stroke="url(#cvFrame)" stroke-width="3"/>' +
-      '<circle cx="100" cy="100" r="82" fill="#d4af37" opacity="0.12" filter="url(#cvGlow)"/>' +
-      '<circle cx="100" cy="100" r="77" fill="url(#cvRim)"/>' +
-      '<g stroke="#f0d060" stroke-width="2" opacity="0.5">' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(0,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(18,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(36,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(54,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(72,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(90,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(108,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(126,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(144,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(162,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(180,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(198,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(216,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(234,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(252,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(270,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(288,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(306,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(324,100,100)"/>' +
-        '<line x1="100" y1="24" x2="100" y2="30" transform="rotate(342,100,100)"/>' +
-      '</g>' +
-      '<circle cx="100" cy="100" r="72" fill="url(#cvFace)"/>' +
-      '<circle cx="100" cy="100" r="66" fill="none" stroke="#9a7800" stroke-width="1.8" opacity="0.7"/>' +
-      '<circle cx="100" cy="100" r="60" fill="none" stroke="#d4af37" stroke-width="0.8" opacity="0.4"/>' +
-      '<circle cx="100" cy="100" r="54" fill="none" stroke="#c8a820" stroke-width="0.6" opacity="0.35"/>' +
-      '<ellipse cx="100" cy="104" rx="38" ry="22" fill="#8a6200" opacity="0.18"/>' +
-      '<ellipse cx="100" cy="103" rx="36" ry="20" fill="#6a4800" opacity="0.12"/>' +
-      '<circle cx="100" cy="100" r="72" fill="url(#cvShine)"/>' +
-      '<text x="100" y="' + textY + '" ' +
-        'font-family="\'Cinzel\',Georgia,serif" ' +
-        'font-size="' + fontSize + '" ' +
-        'font-weight="900" ' +
-        'text-anchor="middle" ' +
-        'letter-spacing="0" ' +
-        'stroke="' + (isJp ? 'rgba(0,0,0,0.92)' : '#1a0800') + '" ' +
-        'stroke-width="' + (isJp ? '6' : '5') + '" ' +
-        'stroke-linejoin="round" ' +
-        'paint-order="stroke fill" ' +
-        'fill="' + fillVal + '"' +
-        (filterId ? ' filter="url(#' + filterId + ')"' : '') + '>' +
-        labelText +
-      '</text>' +
-      underline +
-      '<g opacity="0.75"><circle cx="20" cy="20" r="2.5" fill="#d4af37"/>' +
-        '<line x1="20" y1="14" x2="20" y2="26" stroke="#d4af37" stroke-width="1.2"/>' +
-        '<line x1="14" y1="20" x2="26" y2="20" stroke="#d4af37" stroke-width="1.2"/>' +
-      '</g>' +
-      '<g opacity="0.5"><circle cx="180" cy="20" r="1.8" fill="#d4af37"/>' +
-        '<line x1="180" y1="15" x2="180" y2="25" stroke="#d4af37" stroke-width="1"/>' +
-        '<line x1="175" y1="20" x2="185" y2="20" stroke="#d4af37" stroke-width="1"/>' +
-      '</g>' +
-      '<g opacity="0.5"><circle cx="20" cy="180" r="1.8" fill="#d4af37"/>' +
-        '<line x1="20" y1="175" x2="20" y2="185" stroke="#d4af37" stroke-width="1"/>' +
-        '<line x1="15" y1="180" x2="25" y2="180" stroke="#d4af37" stroke-width="1"/>' +
-      '</g>' +
-      '<g opacity="0.4"><circle cx="180" cy="180" r="1.5" fill="#d4af37"/>' +
-        '<line x1="180" y1="175" x2="180" y2="185" stroke="#d4af37" stroke-width="0.9"/>' +
-        '<line x1="175" y1="180" x2="185" y2="180" stroke="#d4af37" stroke-width="0.9"/>' +
-      '</g>' +
-    '</svg>';
-  }
-
-  function _makeCoinElement(coin) {
-    var jpLabel = (coin && coin.isJackpotOrb && coin.jackpotLevel) ? coin.jackpotLevel : null;
-    var amt = '';
-    if (!jpLabel && coin && coin.value != null) amt = _formatCoinAmt(coin.value);
-    var wrapper = document.createElement('div');
-    wrapper.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;';
-    wrapper.innerHTML = _makeCoinSVG(amt, jpLabel);
-    return wrapper;
-  }
+  // _makeCoinSVG, _makeCoinElement, _pendingCoinMap, setPendingCoinMap,
 
   function makeSymbolImg(symId) {
     var sym = SYMBOL_BY_ID[symId];
-    if (!sym) return null;
+    if (!sym) {
+      console.warn('[UI] makeSymbolImg: no symbol for id', symId, '— SYMBOL_BY_ID keys:', typeof SYMBOL_BY_ID !== 'undefined' ? Object.keys(SYMBOL_BY_ID).join(',') : 'UNDEFINED');
+      return null;
+    }
     var img = document.createElement('img');
     img.src = sym.file; img.alt = sym.name; img.draggable = false;
     return img;
@@ -198,37 +74,28 @@ var UI = (function() {
     resizeCanvas();
   }
 
-  var _pendingCoinMap = null;
-
-  function setPendingCoinMap(coinMap) { _pendingCoinMap = coinMap || null; }
-
-  function overlayReelCoinValues(grid, coinMap) {
-    var prev = _pendingCoinMap;
-    _pendingCoinMap = coinMap;
-    renderGrid(grid);
-    _pendingCoinMap = prev;
-  }
-
-  function clearReelCoinOverlay() {
-    var frame = document.getElementById('reel-frame');
-    if (!frame) return;
-    var layer = frame.querySelector('.reel-coin-overlay-layer');
-    if (layer) layer.parentNode.removeChild(layer);
-    var banner = frame.querySelector('.hs-win-banner');
-    if (banner) banner.parentNode.removeChild(banner);
+  // ── Symbol badge helper — v8.0 ─────────────────────────────────────
+  function _makeSymbolBadge(symId) {
+    var txt = null, cls = 'sym-badge';
+    if (symId === SYMBOLS.SISTERS.id)   { txt = 'JACKPOT'; cls += ' sym-badge-jackpot'; }
+    else if (symId === SYMBOLS.JOSIE.id)  { txt = '×2'; cls += ' sym-badge-josie'; }  // v8.1.40: +×2 additive (was ×3 capped)
+    else if (symId === SYMBOLS.SASHA.id)  { txt = '×1'; cls += ' sym-badge-sasha'; }  // v8.1.40: +×1 additive (was ×2 capped)
+    if (!txt) return null;
+    var b = document.createElement('div');
+    b.className = cls; b.textContent = txt;
+    return b;
   }
 
   function _makeCell(symId, col, row) {
     var cell = document.createElement('div');
     cell.className = 'symbol-cell';
     cell.id = 'sc-' + col + '-' + row;
-    if (symId === BONUS_ID && _pendingCoinMap) {
-      var pos  = col * 3 + row;
-      var coin = _pendingCoinMap[pos];
-      if (coin) { cell.appendChild(_makeCoinElement(coin)); return cell; }
-    }
+    // img is direct child of symbol-cell — uses .symbol-cell img rule (width:90% height:90%)
+    // Badge overlays with position:absolute — no wrapper div needed (Samsung Browser safe)
     var img = makeSymbolImg(symId);
     if (img) cell.appendChild(img);
+    var badge = _makeSymbolBadge(symId);
+    if (badge) cell.appendChild(badge);
     return cell;
   }
 
@@ -244,10 +111,13 @@ var UI = (function() {
       return new Promise(function(resolve) {
         if (!reel) { resolve(); return; }
         setTimeout(function() {
+          // v8.1.4: wrap in try/catch — if this throws it becomes a traceable error
+          try {
           var strip = reel.querySelector('.reel-strip');
           if (!strip) { reel.style.filter = ''; resolve(); return; }
 
           var reelStrip = REEL_STRIPS[col];
+          if (!reelStrip) { console.error('[UI] REEL_STRIPS['+col+'] undefined'); resolve(); return; }
           var len       = reelStrip.length;
           var stop      = stops[col];
           var reelH     = reel.offsetHeight || 210;
@@ -264,7 +134,10 @@ var UI = (function() {
             cell.className = 'symbol-cell';
             cell.style.cssText = 'height:' + cellH + 'px;flex:none;min-height:unset;';
             var img = makeSymbolImg(symId);
+            // img direct child of cell — Samsung Browser safe (no % height wrapper)
             if (img) cell.appendChild(img);
+            var sbadge = _makeSymbolBadge(symId);
+            if (sbadge) cell.appendChild(sbadge);
             strip.appendChild(cell);
           }
 
@@ -301,12 +174,19 @@ var UI = (function() {
               }, SPIN + 25);
             });
           });
+          } catch(animErr) {
+            console.error('[UI] animateReelsStop reel '+col+' threw:', animErr.message, animErr.stack);
+            // Still resolve so Promise.all completes and game can continue
+            resolve();
+          }
         }, DELAYS[col]);
       });
     });
 
     await Promise.all(promises);
     resizeCanvas();
+    // v8.1.3: Re-enable controls after reel animation completes
+    setControlsEnabled(true);
   }
 
   async function showRedSpinPaylineFlash(paylineWins) {
@@ -359,14 +239,14 @@ var UI = (function() {
         if (_skipRequested()) { clearPaylines(); clearHighlights(); return; }
         drawPayline(rw.lineIndex, rw.line, rw.isLetter);
         flashCells(rw.line, rw.count);
-        updateWinDisplay(rw.amount);
+        updateWinDisplay(rw.amount, rw.lineName || '');
         for (var rj = 0; rj < 4; rj++) {
           if (_skipRequested()) break;
           await delay(100);
         }
         clearPaylines(); clearHighlights();
       }
-      if (!_skipRequested()) updateWinDisplay(result.totalWin);
+      if (!_skipRequested()) updateWinDisplay(result.totalWin, '');
       return;
     }
 
@@ -377,13 +257,13 @@ var UI = (function() {
     var sortedWins = wins.slice().sort(function(a, b) { return a.amount - b.amount; });
 
     while (!_skipRequested()) {
-      // All wins simultaneously (brief flash)
+      // All wins simultaneously (brief flash) — show total, no individual label
       for (var aw = 0; aw < wins.length; aw++) {
         drawPayline(wins[aw].lineIndex, wins[aw].line, wins[aw].isLetter);
         flashCells(wins[aw].line, wins[aw].count);
       }
       if (result.scatterWin) flashScatters();
-      updateWinDisplay(result.totalWin);
+      updateWinDisplay(result.totalWin, wins.length > 1 ? (wins.length + ' LINES') : '');
       for (var af = 0; af < 4; af++) {
         if (_skipRequested()) break;
         await delay(130);
@@ -391,13 +271,13 @@ var UI = (function() {
       clearPaylines(); clearHighlights();
       if (_skipRequested()) break;
 
-      // Cycle each win individually
+      // Cycle each win individually — FIX-UI1 v8.1.48: pass lineName to show which line won
       for (var si = 0; si < sortedWins.length; si++) {
         if (_skipRequested()) break;
         var win = sortedWins[si];
         drawPayline(win.lineIndex, win.line, win.isLetter);
         flashCells(win.line, win.count);
-        updateWinDisplay(win.amount);
+        updateWinDisplay(win.amount, win.lineName || '');
         for (var ii = 0; ii < 4; ii++) {
           if (_skipRequested()) break;
           await delay(110); // 440ms per win — responsive to skip tap
@@ -407,7 +287,7 @@ var UI = (function() {
 
       if (result.scatterWin && !_skipRequested()) {
         flashScatters();
-        updateWinDisplay(result.scatterWin);
+        updateWinDisplay(result.scatterWin, 'SCATTER');
         for (var sf = 0; sf < 3; sf++) {
           if (_skipRequested()) break;
           await delay(130);
@@ -417,7 +297,7 @@ var UI = (function() {
     }
 
     clearPaylines(); clearHighlights();
-    updateWinDisplay(result.totalWin);
+    updateWinDisplay(result.totalWin, '');
   }
 
   function drawPayline(lineIndex, line, isLetter) {
@@ -553,10 +433,7 @@ var UI = (function() {
     if (val > 0) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
   }
 
-  function updateBetDisplay(val) {
-    var el = $('bet-display');
-    if (el) el.textContent = '$' + val.toFixed(2);
-  }
+  // updateBetDisplay removed v8.1.52 — zero callers, #bet-display DOM element removed (dead UI)
 
   function updateJackpotMeters() {
     var keys = ['MINI','MINOR','MAJOR','GRAND'];
@@ -608,572 +485,9 @@ var UI = (function() {
     deactivateRedScreen();
   }
 
-  function _fillHoldCell(cell, coin) {
-    if (!coin) return;
-    var displayType = coin.type;
-    if (coin.type === 'jackpot' && coin.jackpotLevel) displayType = coin.jackpotLevel.toLowerCase();
-    cell.className = 'hold-cell ' + displayType;
-    var _jpSvg = {mini:'jp_mini', minor:'jp_minor', major:'jp_major', grand:'jp_grand'};
-    if (displayType === 'cash') {
-      var cashAmt = _formatCoinAmt(coin.value);
-      cell.innerHTML = '<div class="hs-coin-wrap">' + _makeCoinSVG(cashAmt, null) + '</div>';
-    } else {
-      var coinSrc = _jpSvg[displayType]
-        ? 'assets/symbols/' + _jpSvg[displayType] + '.svg'
-        : 'assets/symbols/gold_coin.svg';
-      var valAmt = coin.value != null ? '$' + Math.round(coin.value) : '';
-      cell.innerHTML =
-        '<div class="hs-coin-wrap">' +
-          '<img src="' + coinSrc + '" class="hs-coin-img" draggable="false">' +
-          '<div class="hs-coin-overlay">' +
-            '<span class="hs-c-val hs-c-val-jp">' + valAmt + '</span>' +
-          '</div>' +
-        '</div>';
-    }
-  }
+  // PERMANENTLY REMOVED v8.0 — Hold & Spin bonus is fully removed.
 
-  async function showHoldSpinBoard(board, respins) {
-    var screen = $('hold-screen');
-    if (!screen) return;
-    _lastRespinVal = respins;
-    await triggerHoldSpinExplosion();
-    screen.classList.add('active');
-    updateJackpotMeters();
-    _renderHoldBoard(board);
-    updateRespinCounter(respins, true);
-    updateHoldTotal(0);
-    setControlsEnabled(false);
-    await delay(300);
-  }
-
-  function _renderHoldBoard(board) {
-    var holdBoard = $('hold-board');
-    if (!holdBoard) return;
-    holdBoard.innerHTML = '';
-    for (var i = 0; i < board.length; i++) {
-      var cell = document.createElement('div');
-      cell.className = 'hold-cell';
-      cell.id = 'hcell-' + i;
-      if (board[i]) _fillHoldCell(cell, board[i]);
-      holdBoard.appendChild(cell);
-    }
-  }
-
-  async function triggerHoldSpinExplosion() {
-    var frame = document.getElementById('reel-frame');
-    if (!frame) return;
-    frame.classList.add('hs-trigger-shake');
-    setTimeout(function() { frame.classList.remove('hs-trigger-shake'); }, 700);
-    var rect   = frame.getBoundingClientRect();
-    var cx     = rect.left + rect.width  / 2;
-    var cy     = rect.top  + rect.height / 2;
-    var colors = ['#f5c518','#ffe060','#fff7a0','#d4af37','#ffcc00'];
-    for (var pi = 0; pi < 40; pi++) {
-      var p      = document.createElement('div');
-      p.className = 'hs-burst-particle';
-      var angle  = Math.random() * Math.PI * 2;
-      var dist   = 60 + Math.random() * 140;
-      var size   = 4 + Math.random() * 8;
-      var dur    = 0.5 + Math.random() * 0.6;
-      var color  = colors[Math.floor(Math.random() * colors.length)];
-      p.style.cssText =
-        'position:fixed;border-radius:50%;pointer-events:none;z-index:999;' +
-        'width:' + size + 'px;height:' + size + 'px;' +
-        'background:' + color + ';' +
-        'box-shadow:0 0 6px ' + color + ';' +
-        'left:' + cx + 'px;top:' + cy + 'px;' +
-        'animation:hsBurstOut ' + dur.toFixed(2) + 's ease-out forwards;' +
-        '--bx:' + (Math.cos(angle) * dist).toFixed(0) + 'px;' +
-        '--by:' + (Math.sin(angle) * dist).toFixed(0) + 'px;';
-      document.body.appendChild(p);
-      (function(el, ms) { setTimeout(function() { if (el.parentNode) el.remove(); }, ms); })(p, dur * 1000 + 100);
-    }
-    var flash = document.createElement('div');
-    flash.className = 'hs-trigger-flash';
-    frame.appendChild(flash);
-    setTimeout(function() { if (flash.parentNode) flash.remove(); }, 600);
-    await delay(350);
-  }
-
-  /* pulseLockedCoins removed v6l52 — per owner: no glow animations in H&S */
-
-  // v7.0.5 — Dynamic belt builder. Called once at H&S start per session.
-  // entryJackpot: null | 'MINI'|'MINOR'|'MAJOR'|'GRAND' — awarded tier appears 3× in belt.
-  // Other JP tiers appear 0–1× based on random weighted roll (not every session).
-  // Belt: 18 slots per pass × 2 passes = 36 scrollable items.
-  // JP coins are decorative — they spin past but only award via unified entry check.
-  function _buildHSBelt(entryJackpot) {
-    var JP_SRCS = {
-      MINI:  'assets/symbols/jp_mini.svg',
-      MINOR: 'assets/symbols/jp_minor.svg',
-      MAJOR: 'assets/symbols/jp_major.svg',
-      GRAND: 'assets/symbols/jp_grand.svg',
-    };
-    var CASH_SRC = 'assets/symbols/gold_coin.svg';
-    var SLOTS = 18; // per pass
-
-    // Decide which JP tiers appear in this session's belt (excluding the entry JP)
-    // Each non-entry tier has a 25% chance of appearing once
-    var guestJPs = [];
-    var tiers = ['MINI','MINOR','MAJOR','GRAND'];
-    for (var ti = 0; ti < tiers.length; ti++) {
-      var t = tiers[ti];
-      if (t === entryJackpot) continue; // handled separately
-      if (Math.random() < 0.25) guestJPs.push(t);
-    }
-
-    // Build the coin list for one pass:
-    // 6 CASH + entryJP×3 (if won) + guestJPs×1 each + fill rest with BLANKs
-    var items = [];
-    // Cash
-    for (var c = 0; c < 6; c++) items.push({ type:'cash', src: CASH_SRC });
-    // Entry JP — 3 copies if awarded
-    if (entryJackpot && JP_SRCS[entryJackpot]) {
-      for (var ej = 0; ej < 3; ej++) items.push({ type:'jp', level: entryJackpot, src: JP_SRCS[entryJackpot] });
-    }
-    // Guest JPs — 1 each
-    for (var gi = 0; gi < guestJPs.length; gi++) {
-      var gjp = guestJPs[gi];
-      items.push({ type:'jp', level: gjp, src: JP_SRCS[gjp] });
-    }
-    // Fill remaining slots with blanks
-    while (items.length < SLOTS) items.push(null);
-
-    // Shuffle positions
-    for (var si = items.length - 1; si > 0; si--) {
-      var sj = Math.floor(Math.random() * (si + 1));
-      var tmp = items[si]; items[si] = items[sj]; items[sj] = tmp;
-    }
-
-    return items; // 18 items, used for 2 passes in startHoldSpinning
-  }
-
-  // v7.0.5: accepts optional entryJackpot to build the dynamic belt
-  function startHoldSpinning(board, respinDisplay, emptyCount, isLastThree, entryJackpot) {
-    var isNearMiss = (respinDisplay === 1);
-    var isAnticip  = (emptyCount != null && emptyCount <= 2);
-    var lastThree  = !!isLastThree;
-
-    // Build one shared belt for this respin (all cells use same composition)
-    var beltItems = _buildHSBelt(entryJackpot || null);
-
-    for (var i = 0; i < board.length; i++) {
-      if (board[i] !== null) continue;
-      var cell = $('hcell-' + i);
-      if (!cell) continue;
-
-      cell.innerHTML = '';
-      cell.classList.remove('spinning-cell', 'near-miss', 'anticipation', 'last-three', 'decelerating');
-
-      var strip = document.createElement('div');
-      strip.className = 'hs-reel-strip';
-
-      var baseDur = 2.4 + Math.random() * 0.8;
-      var nmDur   = 4.5 + Math.random() * 1.5;
-      var antDur  = 1.3 + Math.random() * 0.5;
-      var ltDur   = 3.2 + Math.random() * 1.0;
-      var offset  = -(Math.random() * baseDur);
-      strip.style.setProperty('--reel-dur',     baseDur.toFixed(2) + 's');
-      strip.style.setProperty('--reel-dur-nm',  nmDur.toFixed(2)   + 's');
-      strip.style.setProperty('--reel-dur-ant', antDur.toFixed(2)  + 's');
-      strip.style.setProperty('--reel-dur-lt',  ltDur.toFixed(2)   + 's');
-      strip.style.setProperty('--reel-offset',  offset.toFixed(2)  + 's');
-
-      if (lastThree)       strip.classList.add('last-three');
-      else if (isAnticip)  strip.classList.add('anticipation');
-      else if (isNearMiss) strip.classList.add('near-miss');
-
-      // 2 passes of the 18-slot belt
-      for (var pass = 0; pass < 2; pass++) {
-        for (var ri = 0; ri < beltItems.length; ri++) {
-          var def  = beltItems[ri];
-          var disc = document.createElement('div');
-          disc.className = def ? 'hs-reel-coin' : 'hs-reel-blank';
-          if (def) {
-            var img = document.createElement('img');
-            img.src = def.src;
-            img.className = 'hs-reel-coin-img';
-            img.draggable = false;
-            disc.appendChild(img);
-          }
-          strip.appendChild(disc);
-        }
-      }
-
-      cell.appendChild(strip);
-      cell.classList.add('spinning-cell');
-      if (lastThree)       cell.classList.add('last-three');
-      else if (isAnticip)  cell.classList.add('anticipation');
-      else if (isNearMiss) cell.classList.add('near-miss');
-    }
-  }
-
-  // v7.0.5: decelerate then stop — strips slow to near-halt over 500ms before being removed.
-  // Replaces the instant clearHoldSpinning() wipe that made coins appear to drop after a dead stop.
-  function decelerateHoldSpinning(onDecelerationComplete) {
-    var strips = document.querySelectorAll('#hold-board .hold-cell.spinning-cell .hs-reel-strip');
-    for (var i = 0; i < strips.length; i++) {
-      strips[i].classList.add('decelerating');
-    }
-    setTimeout(function() {
-      clearHoldSpinning();
-      if (typeof onDecelerationComplete === 'function') onDecelerationComplete();
-    }, 500);
-  }
-
-  function clearHoldSpinning() {
-    var cells = document.querySelectorAll('#hold-board .hold-cell.spinning-cell');
-    for (var i = 0; i < cells.length; i++) {
-      cells[i].classList.remove('spinning-cell', 'near-miss', 'anticipation', 'last-three', 'decelerating');
-      cells[i].innerHTML = '';
-    }
-  }
-
-  async function animateHoldSpinning(board, durationMs, respinDisplay, emptyCount, isLastThree) {
-    if (durationMs === undefined) durationMs = 480;
-    startHoldSpinning(board, respinDisplay, emptyCount, isLastThree);
-    await delay(durationMs);
-    clearHoldSpinning();
-  }
-
-  async function animateCoinLand(pos, coin, isReplay, coinNumber, boardRunningTotal) {
-    if (isReplay === undefined) isReplay = false;
-    if (coinNumber === undefined) coinNumber = 0;
-    var cell = $('hcell-' + pos);
-    if (!cell) return;
-    cell.classList.remove('spinning-cell', 'near-miss', 'anticipation', 'last-three', 'decelerating');
-
-    if (isReplay) {
-      _fillHoldCell(cell, coin);
-      updateHoldTotal(_calcBoardTotal());
-      return;
-    }
-
-    var isSixthCoin = (coinNumber === 6);
-    var isHighValue = (!coin.isJackpotOrb && coin.value != null && coin.value >= 5);
-
-    _fillHoldCell(cell, coin);
-
-    // v7.0.5 FIX — double-rAF guarantees the browser paints the initial position
-    // before the fall animation starts. await delay(30) was insufficient on Android.
-    var coinWrap = cell.querySelector('.hs-coin-wrap');
-    if (coinWrap) {
-      coinWrap.style.transform = isSixthCoin
-        ? 'translateY(-220px) rotateY(0deg) scale(0.4)'
-        : 'translateY(-160px) rotateY(0deg) scale(0.5)';
-      coinWrap.style.opacity   = '0';
-      coinWrap.style.animation = 'none';
-    }
-
-    await new Promise(function(resolve) {
-      requestAnimationFrame(function() {
-        requestAnimationFrame(function() {
-          // Second rAF: browser has committed the start-position paint
-          if (coinWrap) {
-            coinWrap.style.transform = '';
-            coinWrap.style.opacity   = '';
-            coinWrap.style.animation = '';
-          }
-          if (isSixthCoin) cell.classList.add('coin-slamming');
-          else             cell.classList.add('coin-dropping');
-          resolve();
-        });
-      });
-    });
-
-    // v7.0.5 FIX — audio fires at CSS animation impact point, not at a fixed delay.
-    // coinFall (600ms): impact at 55% = 330ms
-    // coinSlam6 (880ms): impact at 58% = 510ms
-    var impactMs = isSixthCoin ? 510 : 330;
-    setTimeout(function() {
-      if (typeof Audio !== 'undefined' && Audio.play) {
-        if (isSixthCoin)                             Audio.play('hold_spin_coin_slam');
-        else if (coinNumber >= 1 && coinNumber <= 5) Audio.play('hold_spin_coin_chime');
-        else                                         Audio.play('hold_spin_land');
-      }
-
-      cell.classList.remove('coin-dropping', 'coin-slamming');
-      cell.classList.add('coin-dropped');
-
-      if (boardRunningTotal !== undefined) updateHoldTotal(boardRunningTotal);
-      else                                updateHoldTotal(_calcBoardTotal());
-
-      if (isSixthCoin) _spawnLightningBurst(cell);
-
-      var angles  = isSixthCoin ? [0,40,80,120,160,200,240,280,320]
-                  : isHighValue ? [0,45,90,135,180,225,270,315]
-                  :               [0,60,120,180,240,300];
-      var baseDist = isSixthCoin ? 28 : isHighValue ? 22 : 18;
-      for (var ai = 0; ai < angles.length; ai++) {
-        var spark = document.createElement('div');
-        spark.className = 'coin-sparkle';
-        if (isSixthCoin) spark.classList.add('spark-slam');
-        var dist = baseDist + Math.random() * 12;
-        var rad  = angles[ai] * Math.PI / 180;
-        spark.style.setProperty('--sx', (Math.cos(rad) * dist) + 'px');
-        spark.style.setProperty('--sy', (Math.sin(rad) * dist) + 'px');
-        spark.style.left = '50%'; spark.style.top = '50%';
-        spark.style.marginLeft = '-3px'; spark.style.marginTop = '-3px';
-        cell.appendChild(spark);
-        (function(el, ms) { setTimeout(function() { if (el.parentNode) el.remove(); }, ms); })(spark, isSixthCoin ? 650 : 400);
-      }
-
-      setTimeout(function() {
-        cell.classList.remove('coin-dropped');
-        var cw = cell.querySelector('.hs-coin-wrap');
-        if (cw) cw.classList.add('idle-spin');
-      }, 420);
-
-    }, impactMs);
-
-    await delay(isSixthCoin ? 1200 : 950);
-  }
-
-  function _spawnLightningBurst(cell) {
-    var angles = [0,45,90,135,180,225,270,315];
-    for (var i = 0; i < angles.length; i++) {
-      var bolt = document.createElement('div');
-      bolt.className = 'hs-lightning-bolt';
-      bolt.style.setProperty('--angle', angles[i] + 'deg');
-      cell.appendChild(bolt);
-      (function(el) { setTimeout(function() { if (el.parentNode) el.remove(); }, 550); })(bolt);
-    }
-  }
-
-  function _spawnCounterSparks(badge) {
-    if (!badge) return;
-    var rect = badge.getBoundingClientRect();
-    var cx = rect.left + rect.width  / 2;
-    var cy = rect.top  + rect.height / 2;
-    for (var i = 0; i < 6; i++) {
-      var spark = document.createElement('div');
-      spark.className = 'counter-spark';
-      var rad  = (i * 60) * Math.PI / 180;
-      var dist = 28 + Math.random() * 10;
-      spark.style.left = (cx + Math.cos(rad) * dist) + 'px';
-      spark.style.top  = (cy + Math.sin(rad) * dist) + 'px';
-      document.body.appendChild(spark);
-      (function(el) { setTimeout(function() { if (el.parentNode) el.remove(); }, 420); })(spark);
-    }
-  }
-
-  function _calcBoardTotal() {
-    var total = 0;
-    var cells = document.querySelectorAll('#hold-board .hold-cell');
-    for (var i = 0; i < cells.length; i++) {
-      var cv = cells[i].querySelector('.hs-c-val');
-      var v  = parseFloat(cv ? (cv.textContent || '').replace('$', '') : '0');
-      if (!isNaN(v)) total += v;
-    }
-    return total;
-  }
-
-  function updateHoldTotal(val) {
-    var el = $('hold-total-val');
-    if (el) {
-      el.textContent = '$' + Math.round(val);
-      el.classList.remove('val-pop');
-      void el.offsetWidth;
-      el.classList.add('val-pop');
-    }
-  }
-
-  var _lastRespinVal = 3;
-  async function updateRespinCounter(val, skipResetAnim) {
-    var el = $('respin-counter');
-    if (!el) return;
-    var isReset = (!skipResetAnim && val === 3 && _lastRespinVal < 3);
-    _lastRespinVal = val;
-
-    var badge = $('respin-badge');
-    var label = el.querySelector ? el.querySelector('.respin-label') : null;
-
-    if (badge) {
-      badge.textContent = val;
-      if (isReset) {
-        badge.classList.remove('lightning-reset');
-        void badge.offsetWidth;
-        badge.classList.add('lightning-reset');
-        _spawnCounterSparks(badge);
-      }
-    }
-
-    var labelText = val === 0 ? 'COLLECTING!' : val === 1 ? 'respin remaining' : 'respins remaining';
-    if (label) label.textContent = labelText;
-    else       el.textContent    = labelText;
-
-    var col = val <= 1 ? '#ff4040' : val === 2 ? '#ff9900' : '#ffffff';
-    el.style.color       = col;
-    el.style.borderColor = val <= 1 ? '#ff4040' : val === 2 ? '#ff9900' : '#c8860a';
-    if (badge) badge.style.color = col;
-  }
-
-  async function flashJackpotCoin(pos, level) {
-    var lvl   = level.toLowerCase();
-    var meter = document.querySelector('#hold-jp-bar .bonus-jp-meter.' + lvl) ||
-                document.querySelector('.bonus-jp-meter.' + lvl);
-    if (meter) {
-      meter.classList.add('jp-meter-hit');
-      setTimeout(function() { meter.classList.remove('jp-meter-hit'); }, 1200);
-    }
-    var cell = $('hcell-' + pos);
-    if (cell) {
-      cell.classList.add('jp-cell-flash');
-      setTimeout(function() { cell.classList.remove('jp-cell-flash'); }, 800);
-    }
-    await delay(600);
-  }
-
-  async function _hsCollectCoins(board, runningTotal) {
-    var total = runningTotal || 0;
-    for (var i = 0; i < 15; i++) {
-      var coin = board[i];
-      if (!coin) continue;
-      var cell    = $('hcell-' + i);
-      if (!cell) continue;
-      var totalEl = $('hold-total-val');
-      if (totalEl && cell) {
-        var cRect = cell.getBoundingClientRect();
-        var tRect = totalEl.getBoundingClientRect();
-        var trail = document.createElement('div');
-        trail.className = 'hs-collect-trail';
-        var cx = cRect.left + cRect.width  / 2;
-        var cy = cRect.top  + cRect.height / 2;
-        var tx = tRect.left + tRect.width  / 2;
-        var ty = tRect.top  + tRect.height / 2;
-        trail.style.cssText = 'left:' + cx + 'px;top:' + cy + 'px;--tx:' + (tx - cx) + 'px;--ty:' + (ty - cy) + 'px;';
-        document.body.appendChild(trail);
-        (function(el) { setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 700); })(trail);
-      }
-      cell.classList.add('coin-collected');
-      var coinVal = (coin.value != null) ? coin.value : 0;
-      total += coinVal;
-      updateHoldTotal(total);
-      await delay(320);
-    }
-    return total;
-  }
-
-  var _dismissHoldBonusWin = null;
-
-  async function showHoldBonusWinScreen(totalWon) {
-    var overlay = $('hs-bonus-win-overlay');
-    if (!overlay) return;
-    var amtEl = overlay.querySelector ? overlay.querySelector('#hs-bonus-win-amt') : null;
-    if (amtEl) amtEl.textContent = '$' + totalWon.toFixed(2);
-    var rain = $('hs-coin-rain');
-    if (rain) {
-      rain.innerHTML = '';
-      for (var ci = 0; ci < 40; ci++) {
-        var coinEl = document.createElement('div');
-        coinEl.className = 'hs-rain-coin';
-        coinEl.style.cssText =
-          'left:' + (Math.random() * 100) + '%;' +
-          'animation-delay:' + (Math.random() * 2.5) + 's;' +
-          'animation-duration:' + (1.4 + Math.random() * 1.4) + 's;';
-        rain.appendChild(coinEl);
-      }
-    }
-    overlay.classList.add('active');
-    await delay(200);
-    await new Promise(function(resolve) {
-      var done = false;
-      function dismiss() { if (!done) { done = true; clearTimeout(timer); resolve(); } }
-      var timer = setTimeout(dismiss, 4000);
-      _dismissHoldBonusWin = dismiss;
-      overlay.addEventListener('click', function handler() {
-        dismiss();
-        overlay.removeEventListener('click', handler);
-      }, { once: true });
-    });
-    _dismissHoldBonusWin = null;
-    overlay.classList.remove('active');
-    if (rain) rain.innerHTML = '';
-  }
-
-  async function showRedSpinEndCelebration(bonusTotal, spinNum) {
-    var overlay = document.getElementById('rs-bonus-win-overlay');
-    if (!overlay) return;
-    var amtEl = document.getElementById('rs-bonus-win-amt');
-    if (amtEl) amtEl.textContent = '$' + bonusTotal.toFixed(2);
-    var spinsEl = document.getElementById('rs-bonus-win-spins');
-    if (spinsEl) spinsEl.textContent = spinNum + (spinNum === 1 ? ' SPIN' : ' SPINS');
-    var rain = document.getElementById('rs-coin-rain');
-    if (rain) {
-      rain.innerHTML = '';
-      for (var ci = 0; ci < 35; ci++) {
-        var coinEl = document.createElement('div');
-        coinEl.className = 'rs-rain-coin';
-        coinEl.style.cssText =
-          'left:' + (Math.random() * 100) + '%;' +
-          'animation-delay:' + (Math.random() * 2.5) + 's;' +
-          'animation-duration:' + (1.4 + Math.random() * 1.4) + 's;';
-        rain.appendChild(coinEl);
-      }
-    }
-    overlay.classList.add('active');
-    await delay(200);
-    await new Promise(function(resolve) {
-      var done = false;
-      var timer = setTimeout(function() { if (!done) { done = true; resolve(); } }, 4000);
-      overlay.addEventListener('click', function handler() {
-        if (!done) { done = true; clearTimeout(timer); resolve(); }
-        overlay.removeEventListener('click', handler);
-      }, { once: true });
-    });
-    overlay.classList.remove('active');
-    if (rain) rain.innerHTML = '';
-  }
-
-  async function showBlackoutCelebration(amount, wasDouble) {
-    if (wasDouble === undefined) wasDouble = false;
-    var board = $('hold-board');
-    if (board) {
-      for (var i = 0; i < 8; i++) {
-        board.style.filter = i % 2 === 0 ? 'brightness(2.5) saturate(1.5)' : 'brightness(1)';
-        await delay(180);
-      }
-      board.style.filter = '';
-    }
-    showToast(wasDouble ? 'DOUBLE GRAND! FULL BOARD!' : 'BLACKOUT! GRAND JACKPOT!', 3000);
-  }
-
-  async function endHoldSpin(board, totalWon, isBlackout, restoreStops, restoreGrid) {
-    _renderHoldBoard(board);
-    updateHoldTotal(0);
-    await delay(600);
-    await _hsCollectCoins(board, 0);
-    await delay(300);
-    await showHoldBonusWinScreen(totalWon);
-    var hs = $('hold-screen');
-    if (hs) hs.classList.remove('active');
-    if (restoreStops && restoreGrid) {
-      await animateReelsStop(restoreStops, restoreGrid, false, false);
-      var coinMap = {};
-      for (var pos = 0; pos < 15; pos++) { if (board[pos]) coinMap[pos] = board[pos]; }
-      overlayReelCoinValues(restoreGrid, coinMap);
-      _showHoldWinBanner(totalWon);
-    }
-    updateWinDisplay(totalWon);
-    await animateCreditCountup(totalWon, false);
-    setControlsEnabled(true);
-  }
-
-  function _showHoldWinBanner(totalWon) {
-    var frame = document.getElementById('reel-frame');
-    if (!frame) return;
-    var existing = frame.querySelector('.hs-win-banner');
-    if (existing) existing.parentNode.removeChild(existing);
-    var banner = document.createElement('div');
-    banner.className = 'hs-win-banner';
-    banner.innerHTML = '<span class="hs-win-banner-label">BONUS WIN</span><span class="hs-win-banner-amt">$' + totalWon.toFixed(2) + '</span>';
-    frame.appendChild(banner);
-    setTimeout(function() { if (banner.parentNode) banner.parentNode.removeChild(banner); }, 6000);
-  }
-
-  function setPickTapCallback(cb) { pickTapCb = cb; }
-
-  async function showPickChooseGrid(size, extraPicks) {
+    async function showPickChooseGrid(size, extraPicks) {
     if (extraPicks === undefined) extraPicks = 0;
     var screen = $('pick-screen');
     if (!screen) return;
@@ -1194,7 +508,7 @@ var UI = (function() {
       tile.innerHTML = '<div class="tile-back">&#11088;</div><div class="tile-front"></div>';
       (function(t) {
         t.addEventListener('click', function() {
-          if (pickTapCb && !t.classList.contains('revealed')) pickTapCb(parseInt(t.dataset.index));
+          if (_pickTapCallback && !t.classList.contains('revealed')) _pickTapCallback(parseInt(t.dataset.index));
         });
       })(tile);
       grid.appendChild(tile);
@@ -1211,14 +525,22 @@ var UI = (function() {
     tile.classList.add('revealed');
     var front = tile.querySelector('.tile-front');
     if (front) {
-      var icons  = {cash:'$', red_spin:'RS', hold_spin:'HS', mini:'MINI', minor:'MINOR', major:'MAJOR', grand:'GRAND'};
-      var icon   = icons[prize.type] || '?';
-      var label  = showValue && prize.type === 'cash' ? '$' + prize.value.toFixed(2) :
-                   prize.type === 'cash'      ? '?' :
-                   prize.type === 'red_spin'  ? 'RED SPIN' :
-                   prize.type === 'hold_spin' ? 'HOLD SPIN' :
-                   prize.type.toUpperCase() + ' JP';
-      front.innerHTML = '<div style="font-size:17px">' + icon + '</div><div style="color:var(--gold-light);font-size:8px;margin-top:1px">' + label + '</div>';
+      // v8.1.40 BUG-PC-2: use CSS classes instead of inline styles for design consistency
+      var typeClass = 'pt-type-' + prize.type.replace('_', '-');
+      var icons  = { cash:'💰', red_spin:'🔴', bonus_cash:'💵', mini:'⭐', minor:'💎', major:'💚', grand:'🏆' };
+      var icon   = icons[prize.type] || '❓';
+      var label;
+      if (prize.type === 'cash') {
+        label = showValue ? '$' + prize.value.toFixed(2) : '?';
+      } else if (prize.type === 'red_spin')   { label = 'RED SPIN'; }
+      else if (prize.type === 'bonus_cash')   { label = 'BONUS CASH'; }
+      else if (prize.type === 'mini')         { label = 'MINI JP'; }
+      else if (prize.type === 'minor')        { label = 'MINOR JP'; }
+      else if (prize.type === 'major')        { label = 'MAJOR JP'; }
+      else if (prize.type === 'grand')        { label = 'GRAND JP'; }
+      else                                    { label = prize.type.toUpperCase(); }
+      front.className = 'tile-front ' + typeClass;
+      front.innerHTML = '<div class="pt-icon">' + icon + '</div><div class="pt-label">' + label + '</div>';
       front.dataset.prizeType = prize.type;
     }
     await delay(isReplay ? 180 : 260);
@@ -1235,7 +557,7 @@ var UI = (function() {
   function updatePickMatches(matchCounts) {
     var el = $('pick-matches');
     if (!el) return;
-    var icons = {cash:'$', red_spin:'RS', hold_spin:'HS', mini:'MINI', minor:'MINOR', major:'MAJOR', grand:'GRAND'};
+    var icons = {cash:'$', red_spin:'RS', mini:'MINI', minor:'MINOR', major:'MAJOR', grand:'GRAND'};
     var parts = [];
     var keys  = Object.keys(matchCounts);
     for (var ki = 0; ki < keys.length; ki++) {
@@ -1246,7 +568,7 @@ var UI = (function() {
     el.textContent = parts.length > 0 ? parts.join('  |  ') : 'Match 3 symbols to win!';
   }
 
-  async function showPickChooseWin(matchedIndex, prize, totalWon, awardHoldSpin, awardRedSpin, matchCounts) {
+  async function showPickChooseWin(matchedIndex, prize, totalWon, awardRedSpin, matchCounts) {
     _lockAllPickTiles();
     var type      = prize.type;
     var matchFound = 0;
@@ -1265,13 +587,13 @@ var UI = (function() {
     }
     var winText = type === 'cash'      ? 'MATCH! WON $' + Math.round(totalWon) :
                   type === 'red_spin'  ? 'MATCH! RED SPIN BONUS!' :
-                  type === 'hold_spin' ? 'MATCH! HOLD & SPIN BONUS!' :
+                  type === 'bonus_cash' ? 'MATCH! BONUS CASH!' :
                   'MATCH! ' + type.toUpperCase() + ' JACKPOT!';
     showToast(winText, 3000);
     await delay(2000);
   }
 
-  async function endPickChoose(prize, totalWon, awardHoldSpin, awardRedSpin) {
+  async function endPickChoose(prize, totalWon, awardRedSpin) {
     await delay(1500);
     var ps = $('pick-screen'); if (ps) ps.classList.remove('active');
     if (totalWon > 0) {
@@ -1285,17 +607,15 @@ var UI = (function() {
   // Flash the relevant jackpot meter panel + ring bell simultaneously.
   // MAJOR/GRAND: also show Cash Out / Continue screen after the flash.
   // MINI/MINOR: meter flash + bell only, auto-dismiss after 3s.
+  // ── JACKPOT CELEBRATION — v8.1.x ────────────────────────────────────
+  // GRAND: Sisters | MAJOR: Josie+Sasha | MINI/MINOR: audio only
   async function showJackpotCelebration(type, amount, context) {
     var colors = { MINI:'#a8d8ea', MINOR:'#c9f0a0', MAJOR:'#f5d878', GRAND:'#ff6b35' };
     var isMajorPlus = (type === 'MAJOR' || type === 'GRAND');
     var color = colors[type] || '#f5c518';
-
-    // 1. Flash the jackpot meter panel for this tier
     var meterId = 'jp-' + type.toLowerCase();
-    var meter   = $(meterId);
+    var meter = $(meterId);
     if (meter) {
-      meter.classList.add('jp-meter-hit');
-      // Red flash: alternate border/background colour 4 times
       var flashCount = 0;
       var flashInterval = setInterval(function() {
         flashCount++;
@@ -1303,75 +623,89 @@ var UI = (function() {
         meter.style.boxShadow  = (flashCount % 2 === 1) ? '0 0 22px rgba(255,0,0,0.9)' : '';
         if (flashCount >= 8) {
           clearInterval(flashInterval);
-          meter.style.background = '';
-          meter.style.boxShadow  = '';
-          meter.classList.remove('jp-meter-hit');
+          meter.style.background = ''; meter.style.boxShadow = '';
         }
       }, 160);
     }
-
-    // Also flash the H&S / P&C bonus JP meters if visible
-    var bonusMeterId = 'hold-jp-' + type.toLowerCase();
-    var bonusMeter   = $(bonusMeterId);
-    if (bonusMeter) { bonusMeter.classList.add('jp-meter-hit'); setTimeout(function() { bonusMeter.classList.remove('jp-meter-hit'); }, 1400); }
-
-    // 2. Ring the bell — simultaneous with flash
-    if (typeof Audio !== 'undefined') {
-      Audio.startJackpotBells();
-      Audio.play('jackpot_' + type.toLowerCase());
-    }
-
-    // 3. MINI/MINOR: auto-dismiss after 3s
+    if (typeof Audio !== 'undefined') { Audio.startJackpotBells(); Audio.play('jackpot_' + type.toLowerCase()); }
     if (!isMajorPlus) {
       await delay(3000);
       if (typeof Audio !== 'undefined') Audio.stopJackpotBells();
       return { action: 'dismiss' };
     }
-
-    // 4. MAJOR/GRAND: show Cash Out / Continue overlay after flash settles
-    await delay(640); // let flash run first
-    var overlay    = $('jackpot-overlay');
-    var sistersImg = $('jackpot-sisters-img');
-    var typeEl     = $('jackpot-type-text');
-    var amtEl      = $('jackpot-amount-text');
-    var actionsEl  = $('jackpot-actions');
-    var tapEl      = $('jackpot-tap-hint');
-
+    await delay(640);
+    var overlay   = $('jackpot-overlay');
+    var charLeft  = $('jackpot-char-left');
+    var charRight = $('jackpot-char-right');
+    var typeEl    = $('jackpot-type-text');
+    var amtEl     = $('jackpot-amount-text');
+    var actionsEl = $('jackpot-actions');
+    var tapEl     = $('jackpot-tap-hint');
     if (overlay) {
       if (typeEl) { typeEl.textContent = type + ' JACKPOT!'; typeEl.style.color = color; }
       if (amtEl)  amtEl.textContent = '$' + amount.toFixed(2);
-      if (sistersImg) {
-        sistersImg.src = 'assets/sisters_celebrate.png';
-        sistersImg.style.display = 'block';
+      if (charLeft)  { charLeft.src = ''; charLeft.style.display = 'none'; }
+      if (charRight) { charRight.src = ''; charRight.style.display = 'none'; }
+      if (type === 'GRAND') {
+        if (charLeft) { charLeft.src = 'assets/sisters_celebrate.png'; charLeft.alt = 'The Turrelle Sisters'; charLeft.style.display = 'block'; charLeft.style.margin = '0 auto'; }
+      } else if (type === 'MAJOR') {
+        if (charLeft)  { charLeft.src  = 'assets/josie.png';  charLeft.alt  = 'Josie';  charLeft.style.display  = 'block'; charLeft.style.margin  = '0'; }
+        if (charRight) { charRight.src = 'assets/sasha.png'; charRight.alt = 'Sasha'; charRight.style.display = 'block'; charRight.style.margin = '0'; }
       }
       if (actionsEl) actionsEl.style.display = 'flex';
       if (tapEl)     tapEl.style.display = 'none';
       overlay.classList.add('active');
     }
-
     return new Promise(function(resolve) {
-      var cashBtn = $('jackpot-cashout-btn');
-      var contBtn = $('jackpot-continue-btn');
+      var cashBtn = $('jackpot-cashout-btn'); var contBtn = $('jackpot-continue-btn');
       function cleanup() {
         if (cashBtn) cashBtn.removeEventListener('click', onCash);
         if (contBtn) contBtn.removeEventListener('click', onCont);
         if (typeof Audio !== 'undefined') Audio.stopJackpotBells();
         if (overlay) overlay.classList.remove('active');
-        if (sistersImg) sistersImg.style.display = 'none';
+        if (charLeft)  { charLeft.style.display = 'none'; charLeft.src = ''; }
+        if (charRight) { charRight.style.display = 'none'; charRight.src = ''; }
       }
-      function onCash() {
-        cleanup();
-        if (typeof CashOut !== 'undefined' && CashOut.doCashOutAmount) CashOut.doCashOutAmount(amount, type + '_JACKPOT');
-        resolve({ action: 'cashout' });
-      }
+      function onCash() { cleanup(); if (typeof CashOut !== 'undefined' && CashOut.doCashOutAmount) CashOut.doCashOutAmount(amount, type + '_JACKPOT'); resolve({ action: 'cashout' }); }
       function onCont() { cleanup(); resolve({ action: 'continue' }); }
       if (cashBtn) cashBtn.addEventListener('click', onCash, { once: true });
       if (contBtn) contBtn.addEventListener('click', onCont, { once: true });
     });
   }
 
-  var _orbTapCallback = null;
+  // ── MULTI-MINI CELEBRATION — v8.1.x ──────────────────────────────────
+  async function showMultiMiniCelebration(miniCount) {
+    var overlay = $('jackpot-overlay'), charLeft = $('jackpot-char-left'), charRight = $('jackpot-char-right');
+    var typeEl = $('jackpot-type-text'), amtEl = $('jackpot-amount-text');
+    var actionsEl = $('jackpot-actions'), tapEl = $('jackpot-tap-hint');
+    if (!overlay) return;
+    var charRow = $('jackpot-char-row');
+    var charMid = document.createElement('img');
+    charMid.id = 'jackpot-char-mid';
+    charMid.style.cssText = 'height:100%;max-width:30%;object-fit:contain;flex:1;';
+    if (charRow) charRow.insertBefore(charMid, charRight);
+    if (charLeft)  { charLeft.src  = 'assets/sasha.png';   charLeft.alt  = 'Sasha';     charLeft.style.display  = 'block'; charLeft.style.margin  = '0'; }
+    if (charMid)   { charMid.src   = 'assets/scott.png';   charMid.alt   = 'Scott';     charMid.style.display   = 'block'; }
+    if (charRight) { charRight.src = 'assets/maxine.png'; charRight.alt = 'DJ Maxine'; charRight.style.display = 'block'; charRight.style.margin = '0'; }
+    if (typeEl) { typeEl.textContent = String.fromCodePoint(0x1F389) + ' ' + miniCount + '× MINI JACKPOT!'; typeEl.style.color = '#a8d8ea'; }
+    if (amtEl)  amtEl.textContent = 'MULTIPLE WINS!';
+    if (actionsEl) actionsEl.style.display = 'none';
+    if (tapEl)     tapEl.style.display = 'block';
+    overlay.classList.add('active');
+    if (typeof Audio !== 'undefined') { Audio.startJackpotBells(); Audio.play('jackpot_mini'); }
+    await delay(4000);
+    if (typeof Audio !== 'undefined') Audio.stopJackpotBells();
+    overlay.classList.remove('active');
+    if (charLeft)  { charLeft.style.display = 'none'; charLeft.src = ''; charLeft.style.margin = ''; }
+    if (charRight) { charRight.style.display = 'none'; charRight.src = ''; charRight.style.margin = ''; }
+    if (charMid && charMid.parentNode) charMid.parentNode.removeChild(charMid);
+  }
+
+    var _orbTapCallback = null;
   function setOrbTapCallback(cb) { _orbTapCallback = cb; }
+
+  var _pickTapCallback = null;
+  function setPickTapCallback(cb) { _pickTapCallback = cb; }
 
   async function showBonusLetterCelebration() {
     var cel = $('bonus-letter-celebrate');
@@ -1397,7 +731,7 @@ var UI = (function() {
     var container = $('bonus-orb-container');
     if (!container) return;
     container.innerHTML = '';
-    var orbLabels = { red_spin:'RED SPIN', pick_choose:'PICK & CHOOSE', hold_spin:'HOLD & SPIN' };
+    var orbLabels = { red_spin:'RED SPIN', pick_choose:'PICK & CHOOSE', bonus_cash:'BONUS CASH' };
 
     for (var i = 0; i < prizes.length; i++) {
       var orb = document.createElement('div');
@@ -1418,26 +752,48 @@ var UI = (function() {
     await delay(1600);
   }
 
-  async function revealBonusOrbs(prizes, winPosition, chosenIdx) {
-    var labels = { red_spin:'RED SPIN', pick_choose:'PICK & CHOOSE', hold_spin:'HOLD & SPIN' };
-    var icons  = { red_spin:'RS', pick_choose:'PC', hold_spin:'HS' };
+  async function revealBonusOrbs(prizes, winPosition, chosenIdx, cashAmount) {
+    // BUG-ORB1 FIX v8.1.51: cashAmount now passed in so winner orb can show dollar amount
+    var labels = { red_spin:'RED SPIN', pick_choose:'PICK & CHOOSE', bonus_cash:'BONUS CASH' };
+    var icons  = { red_spin:'RS', pick_choose:'PC', bonus_cash:'$' };
     for (var i = 0; i < prizes.length; i++) {
       var orb   = $('orb-' + i);
       if (!orb) continue;
       var icon  = orb.querySelector('.orb-icon');
       var label = orb.querySelector('.orb-label');
-      if (icon)  icon.textContent  = icons[prizes[i]]  || '?';
-      if (label) label.textContent = labels[prizes[i]] || prizes[i];
-      if (i === winPosition) orb.classList.add('orb-winner');
-      else                   orb.classList.add('orb-loser');
+      if (icon) icon.textContent = icons[prizes[i]] || '?';
+      if (i === winPosition) {
+        if (prizes[i] === 'bonus_cash' && cashAmount > 0) {
+          if (icon)  icon.textContent  = '$';
+          if (label) label.textContent = '$' + cashAmount.toFixed(2);
+        } else {
+          if (label) label.textContent = labels[prizes[i]] || prizes[i];
+        }
+        orb.classList.add('orb-winner');
+      } else {
+        if (label) label.textContent = labels[prizes[i]] || prizes[i];
+        orb.classList.add('orb-loser');
+      }
     }
     await delay(800);
   }
 
-  async function endBonusOrbScreen(winPrize) {
-    var labels = { red_spin:'RED SPIN!', pick_choose:'PICK & CHOOSE!', hold_spin:'HOLD & SPIN!' };
-    showToast((labels[winPrize] || winPrize), 2500);
+  async function endBonusOrbScreen(winPrize, cashAmount) {
+    // BUG-ORB1 FIX v8.1.51: show cash amount in toast and credit countup animation
+    var toastMsg;
+    if (winPrize === 'bonus_cash' && cashAmount > 0) {
+      toastMsg = 'BONUS CASH! $' + cashAmount.toFixed(2);
+    } else {
+      var labels = { red_spin:'RED SPIN!', pick_choose:'PICK & CHOOSE!', bonus_cash:'BONUS CASH!' };
+      toastMsg = labels[winPrize] || winPrize;
+    }
+    showToast(toastMsg, 3000);
     Audio.play('win_big');
+    if (winPrize === 'bonus_cash' && cashAmount > 0) {
+      // Animate the credit countup so player sees the cash visually credited
+      updateWinDisplay(cashAmount, 'BONUS CASH');
+      await animateCreditCountup(cashAmount, false);
+    }
     await delay(1500);
     var screen = $('bonus-orb-screen');
     if (screen) screen.style.display = 'none';
@@ -1478,7 +834,7 @@ var UI = (function() {
 
 
   function setControlsEnabled(enabled) {
-    var ids = ['spin-btn','bet-up','bet-down','max-bet-btn','auto-btn'];
+    var ids = ['spin-btn','bet-max-btn','bet-one-btn']; // v8.1.9: removed ghost IDs bet-up/bet-down/auto-btn (NEW-BUG-A fix — none exist in DOM)
     for (var i = 0; i < ids.length; i++) {
       var el = $(ids[i]); if (el) el.disabled = !enabled;
     }
@@ -1502,14 +858,6 @@ var UI = (function() {
     clearPaylines(); clearHighlights(); updateWinDisplay(0);
     updateBalance(GameState.balance);
     for (var i = 0; i < reelEls.length; i++) { if (reelEls[i]) reelEls[i].classList.remove('spinning'); }
-    if (_dismissHoldBonusWin) { _dismissHoldBonusWin(); _dismissHoldBonusWin = null; }
-    var hbwo = $('hs-bonus-win-overlay');
-    if (hbwo) {
-      hbwo.classList.remove('active');
-      var rain = hbwo.querySelector ? hbwo.querySelector('#hs-coin-rain') : null;
-      if (rain) rain.innerHTML = '';
-    }
-    clearReelCoinOverlay();
   }
 
   function onSpinComplete() {
@@ -1559,28 +907,292 @@ var UI = (function() {
 
   function delay(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 
+
+  // ── HELP / PAYTABLE MENU — v8.1.3 ───────────────────────────────────
+  var _helpCurrentPage = 1;
+  var HELP_TOTAL_PAGES = 4;
+
+  function buildHelpMenu() {
+    // v8.1.54: Compact no-scroll redesign. VGT-style pay table. Fits Galaxy S23 without scrolling.
+    var info = document.getElementById('help-denom-info');
+    if (info) {
+      var _d = (typeof GameState !== 'undefined' && GameState.lastDenom) ? GameState.lastDenom : 0.01;
+      var _c = (typeof GameState !== 'undefined' && GameState.lastCreditsPerLine) ? GameState.lastCreditsPerLine : 5;
+      info.textContent = '$' + (Math.round(_d * _c * 100) / 100).toFixed(2) + '/line';
+    }
+
+    function si(src, alt) { return '<img class="ht-sym" src="' + src + '" alt="' + alt + '">'; }
+
+    // PAGE 1: HOW TO PLAY
+    var p1 = '<div class="ht-page">';
+    p1 += '<div class="ht-title">HOW TO PLAY</div>';
+    p1 += '<div class="ht-sec">THE BASICS</div>';
+    p1 += '<div class="ht-row2">Choose your coin denom with the <b>50c v</b> button</div>';
+    p1 += '<div class="ht-row2">Press <b>SPIN</b> to play all 20 paylines at once</div>';
+    p1 += '<div class="ht-row2">Wins pay left to right starting from reel 1</div>';
+    p1 += '<div class="ht-row2">More matching symbols = bigger win!</div>';
+    p1 += '<div class="ht-sec">WILDS AND MULTIPLIERS</div>';
+    p1 += '<div class="ht-row2"><b>Josie</b> = Wild x3 multiplier on any line she helps win</div>';
+    p1 += '<div class="ht-row2"><b>Sasha</b> = Wild x2 multiplier on any line she helps win</div>';
+    p1 += '<div class="ht-row2">Combined wilds capped at x3 total multiplier</div>';
+    p1 += '<div class="ht-sec">JACKPOTS</div>';
+    p1 += '<div class="ht-row2">4 progressives grow with every spin: <b>MINI MINOR MAJOR GRAND</b></div>';
+    p1 += '<div class="ht-row2">Each jackpot is <b>guaranteed to hit</b> before its cap</div>';
+    p1 += '<div class="ht-row2">Won through bonus features — keep spinning!</div>';
+    p1 += '<div class="ht-sec">CASH OUT AND WALLET</div>';
+    p1 += '<div class="ht-row2">Tap <b>CASH OUT</b> to convert balance to a digital voucher</div>';
+    p1 += '<div class="ht-row2">Tap <b>INSERT CASH</b> to open wallet and redeem vouchers</div>';
+    p1 += '<div class="ht-row2">Store your voucher ID safely to collect your winnings</div>';
+    p1 += '</div>';
+
+    // PAGE 2: PAY TABLE — VGT-style dense grid
+    // v8.1.55 FIX: Josie/Sasha are multiplier wilds — wild-only lines pay ZERO credits.
+    // Their rows now correctly show jackpot tiers, not credit amounts.
+    var p2 = '<div class="ht-page ht-pt">';
+
+    // Jackpot symbols — separate section, no pay columns (jackpots not credits)
+    p2 += '<div class="ht-pt-sec">JACKPOT SYMBOLS</div>';
+    p2 += '<div class="ht-jp-note">5 of a kind on the center line (or any line for MAJOR)</div>';
+
+    var jpRows = [
+      { img: si('assets/sisters.png','Sisters'), label:'Sisters',      jp:'GRAND',  note:'any line' },
+      { img: si('assets/josie.png',  'Josie'),   label:'5x Josie',    jp:'MINOR',  note:'center line' },
+      { img: si('assets/sasha.png',  'Sasha'),   label:'5x Sasha',    jp:'MINI',   note:'center line' },
+      { img: si('assets/josie.png',  'Josie') + si('assets/sasha.png','Sasha'), label:'Josie + Sasha mix', jp:'MAJOR', note:'any line' },
+    ];
+    for (var ji = 0; ji < jpRows.length; ji++) {
+      var jr = jpRows[ji];
+      p2 += '<div class="ht-jp-row">';
+      p2 += '<div class="ht-jp-imgs">' + jr.img + '</div>';
+      p2 += '<div class="ht-jp-tier ' + jr.jp.toLowerCase() + '-tier">' + jr.jp + '</div>';
+      p2 += '<div class="ht-jp-note2">' + jr.note + '</div>';
+      p2 += '</div>';
+    }
+    p2 += '<div class="ht-jp-wild-note">Josie x3 and Sasha x2 multiply wins — wild-only lines pay $0</div>';
+
+    // Standard symbols — with 3/4/5 column headers
+    p2 += '<div class="ht-pt-hdr">';
+    p2 += '<div class="ht-pt-sym-col"></div>';
+    p2 += '<div class="ht-pt-pays-hdr"><span>3</span><span>4</span><span>5</span></div>';
+    p2 += '</div>';
+    p2 += '<div class="ht-pt-sec">STANDARD SYMBOLS</div>';
+    var stdRows = [
+      ['assets/scott.png',               'StrayPup', ['40','80','150']],  // v8.1.58 recalibrated
+      ['assets/maxine.png',              'DJ Maxine',['20','40','60']],
+      ['assets/symbols/seven.svg',       'Seven',    ['10','15','25']],
+      ['assets/symbols/diamond.svg',     'Diamond',  ['6','12','20']],
+      ['assets/symbols/dollar_bills.svg','Bills',    ['5','8','15']]
+    ];
+    for (var si2 = 0; si2 < stdRows.length; si2++) {
+      var sr = stdRows[si2];
+      p2 += '<div class="ht-pt-row"><div class="ht-pt-sym-col">' + si(sr[0],sr[1]) + '</div>';
+      p2 += '<div class="ht-pt-pays"><span>' + sr[2][0] + '</span><span>' + sr[2][1] + '</span><span>' + sr[2][2] + '</span></div></div>';
+    }
+    p2 += '<div class="ht-pt-sec">BAR SYMBOLS</div>';
+    var barRows = [
+      [si('assets/symbols/triple_bar.svg','3-Bar'), ['4','6','10']],   // v8.1.58 recalibrated
+      [si('assets/symbols/double_bar.svg','2-Bar'), ['3','5','8']],
+      [si('assets/symbols/single_bar.svg','1-Bar'), ['2','3','6']],
+      [si('assets/symbols/triple_bar.svg','Bar')+si('assets/symbols/double_bar.svg','Bar')+si('assets/symbols/single_bar.svg','Bar'), ['3','5','8']]
+    ];
+    for (var bi = 0; bi < barRows.length; bi++) {
+      var brr = barRows[bi];
+      p2 += '<div class="ht-pt-row"><div class="ht-pt-sym-col">' + brr[0] + '</div>';
+      p2 += '<div class="ht-pt-pays"><span>' + brr[1][0] + '</span><span>' + brr[1][1] + '</span><span>' + brr[1][2] + '</span></div></div>';
+    }
+    p2 += '<div class="ht-pt-note">Credits x bet/line = cash win. Wild multiplier applies on winning lines.</div>';
+    p2 += '</div>';
+
+    // PAGE 3: BONUS FEATURES
+    var p3 = '<div class="ht-page">';
+    p3 += '<div class="ht-title">BONUS FEATURES</div>';
+    p3 += '<div class="ht-bonus-row"><div class="ht-bicon">&#128308;</div>';
+    p3 += '<div class="ht-binfo"><div class="ht-bname">RED SPIN</div>';
+    p3 += '<div class="ht-bdesc">Reels go RED and every spin pays more than the last! Keep climbing toward the Sisters Jackpot!</div></div></div>';
+    p3 += '<div class="ht-bonus-row"><div class="ht-bicon">' + si('assets/symbols/lipstick.svg','Lipstick') + '</div>';
+    p3 += '<div class="ht-binfo"><div class="ht-bname">PICK AND CHOOSE</div>';
+    p3 += '<div class="ht-bdesc">5 Lipstick on the center line! Tap tiles to match 3 and win cash, jackpots, or more bonus action.</div></div></div>';
+    p3 += '<div class="ht-bonus-row"><div class="ht-bicon ht-blet">';
+    p3 += si('assets/symbols/letter_b.svg','B') + si('assets/symbols/letter_o.svg','O') + si('assets/symbols/letter_n.svg','N');
+    p3 += '</div><div class="ht-binfo"><div class="ht-bname">BONUS ORB GAME</div>';
+    p3 += '<div class="ht-bdesc">Collect B-O-N-U-S on the bottom row! Three glowing orbs appear - pick one to reveal your mystery prize!</div></div></div>';
+    p3 += '<div class="ht-sec">BONUS LETTER PAYS (credits x bet/line)</div>';
+    p3 += '<div class="ht-letrow">';
+    p3 += '<div class="ht-letcell">' + si('assets/symbols/letter_b.svg','B') + '<div class="ht-letval">2</div></div>';
+    p3 += '<div class="ht-letcell">' + si('assets/symbols/letter_b.svg','B') + si('assets/symbols/letter_o.svg','O') + '<div class="ht-letval">4</div></div>';
+    p3 += '<div class="ht-letcell">' + si('assets/symbols/letter_b.svg','B') + si('assets/symbols/letter_o.svg','O') + si('assets/symbols/letter_n.svg','N') + '<div class="ht-letval">8</div></div>';
+    p3 += '<div class="ht-letcell">' + si('assets/symbols/letter_b.svg','B') + si('assets/symbols/letter_o.svg','O') + si('assets/symbols/letter_n.svg','N') + si('assets/symbols/letter_u.svg','U') + '<div class="ht-letval">20</div></div>';
+    p3 += '</div></div>';
+
+    // PAGE 4: SOUND CONTROLS
+    var p4 = '<div class="ht-page">';
+    p4 += '<div class="ht-title">SOUND CONTROLS</div>';
+    p4 += '<div class="ht-sound-blk"><div class="ht-sec">&#128266; MASTER VOLUME</div>';
+    p4 += '<div class="ht-vol-row"><span class="ht-vol-lbl">&#128264;</span>';
+    p4 += '<input type="range" id="help-vol-slider" class="ht-slider" min="0" max="100" value="50">';
+    p4 += '<span class="ht-vol-lbl">&#128266;</span></div></div>';
+    p4 += '<div class="ht-sound-blk"><div class="ht-sec">&#127925; THEME MUSIC</div>';
+    p4 += '<div class="ht-sound-desc">Mute background music only - win sounds still play normally</div>';
+    p4 += '<button id="help-music-btn" class="ht-mute-btn">&#127925; MUSIC ON</button></div>';
+    p4 += '<div class="ht-sound-blk"><div class="ht-sec">&#128263; ALL SOUNDS</div>';
+    p4 += '<div class="ht-sound-desc">Mute everything - music, win sounds, bells and bonus audio</div>';
+    p4 += '<button id="help-sfx-btn" class="ht-mute-btn">&#128266; SOUND ON</button></div>';
+    p4 += '</div>';
+
+    // Render
+    var pgs = [p1, p2, p3, p4];
+    for (var n = 1; n <= 4; n++) {
+      var pg = document.getElementById('help-page-' + n);
+      if (pg) pg.innerHTML = pgs[n - 1];
+    }
+    var totEl = document.getElementById('help-page-total');
+    if (totEl) totEl.textContent = '4';
+    _helpSetPage(1);
+
+    // Wire sound controls
+    var slider = document.getElementById('help-vol-slider');
+    if (slider && typeof Audio !== 'undefined') {
+      slider.addEventListener('input', function() { Audio.setVolume(parseInt(this.value,10)/100); });
+    }
+    var musicBtn = document.getElementById('help-music-btn');
+    if (musicBtn && typeof Audio !== 'undefined') {
+      var _updM = function() {
+        var m = Audio.getMusicMuted();
+        musicBtn.textContent = m ? String.fromCharCode(128263)+' MUSIC OFF' : String.fromCharCode(127925)+' MUSIC ON';
+        if (m) musicBtn.classList.add('ht-mute-on'); else musicBtn.classList.remove('ht-mute-on');
+      };
+      _updM();
+      musicBtn.addEventListener('click', function() { Audio.toggleMusicMute(); _updM(); });
+    }
+    var sfxBtn = document.getElementById('help-sfx-btn');
+    if (sfxBtn && typeof Audio !== 'undefined') {
+      var _updS = function() {
+        var m = Audio.getMuted();
+        sfxBtn.textContent = m ? String.fromCharCode(128263)+' ALL MUTED' : String.fromCharCode(128266)+' SOUND ON';
+        if (m) sfxBtn.classList.add('ht-mute-on'); else sfxBtn.classList.remove('ht-mute-on');
+      };
+      _updS();
+      sfxBtn.addEventListener('click', function() { Audio.toggleMute(); _updS(); });
+    }
+  }
+
+  function _helpSetPage(n) {
+    _helpCurrentPage = n;
+    var pages = document.querySelectorAll('.pt-page');
+    for (var i = 0; i < pages.length; i++) pages[i].classList.remove('active');
+    var pg = document.getElementById('help-page-' + n);
+    if (pg) { pg.classList.add('active'); pg.scrollTop = 0; }
+    var cur = document.getElementById('help-page-cur');
+    if (cur) cur.textContent = n;
+    var tot = document.getElementById('help-page-total');
+    if (tot) tot.textContent = HELP_TOTAL_PAGES;
+    var prev = document.getElementById('help-prev');
+    var next = document.getElementById('help-next');
+    if (prev) prev.disabled = (n <= 1);
+    if (next) next.disabled = (n >= HELP_TOTAL_PAGES);
+  }
+
+  // Wire help buttons (called from init)
+  function _wireHelpButtons() {
+    var _helpBtn = document.getElementById('help-btn');
+    if (_helpBtn) _helpBtn.addEventListener('click', function() {
+      buildHelpMenu();
+      var hs = document.getElementById('help-screen');
+      if (hs) hs.classList.add('active');
+      if (typeof Audio !== 'undefined') Audio.play('button_click');
+    });
+    var _helpClose = document.getElementById('help-close');
+    if (_helpClose) _helpClose.addEventListener('click', function() {
+      var hs = document.getElementById('help-screen');
+      if (hs) hs.classList.remove('active');
+      if (typeof Audio !== 'undefined') Audio.play('button_click');
+    });
+    var _helpPrev = document.getElementById('help-prev');
+    if (_helpPrev) _helpPrev.addEventListener('click', function() {
+      if (_helpCurrentPage > 1) { _helpSetPage(_helpCurrentPage - 1); }
+    });
+    var _helpNext = document.getElementById('help-next');
+    if (_helpNext) _helpNext.addEventListener('click', function() {
+      if (_helpCurrentPage < HELP_TOTAL_PAGES) { _helpSetPage(_helpCurrentPage + 1); }
+    });
+    // Close on background tap
+    var hs2 = document.getElementById('help-screen');
+    if (hs2) hs2.addEventListener('click', function(e) {
+      if (e.target === hs2) hs2.classList.remove('active');
+    });
+  }
+
+
+  // ── RED SPIN TIER BANNER — v8.1.3 ──────────────────────────────────
+  // Called by bonuses.js when player advances to a new RS tier
+  function showRedSpinTier(tierName, spinNum) {
+    var banner = document.getElementById('rs-tier-banner');
+    if (!banner) {
+      // Create banner dynamically if not in DOM
+      banner = document.createElement('div');
+      banner.id = 'rs-tier-banner';
+      banner.style.cssText = 'position:fixed;top:40%;left:50%;-webkit-transform:translateX(-50%);transform:translateX(-50%);background:rgba(180,0,0,0.92);color:#fff7a0;font-family:var(--font-display,sans-serif);font-size:22px;font-weight:900;letter-spacing:3px;padding:14px 28px;border-radius:12px;border:2px solid #d4af37;z-index:600;pointer-events:none;text-align:center;-webkit-animation:rsBannerPulse 0.6s ease;animation:rsBannerPulse 0.6s ease;';
+      document.body.appendChild(banner);
+    }
+    banner.textContent = tierName.toUpperCase() + ' TIER';
+    banner.style.display = 'block';
+    banner.style.opacity = '1';
+    setTimeout(function() {
+      banner.style.opacity = '0';
+      setTimeout(function() { banner.style.display = 'none'; }, 400);
+    }, 1800);
+  }
+  // v8.1.3: Restored as functional stubs to prevent runtime errors
+  function startInsertCashTicker() {
+    // Cash insert ticker — shows credits adding up
+    // Full implementation lives in cashout.js; this stub satisfies calls from game.js
+    var d = document.getElementById('balance-val');
+    if (d) d.classList.add('balance-update');
+  }
+
+  function stopInsertCashTicker() {
+    var d = document.getElementById('balance-val');
+    if (d) d.classList.remove('balance-update');
+  }
+
+  async function showRedSpinEndCelebration(totalWon, spinCount) {
+    // Red Spin end summary celebration
+    var overlay = document.getElementById('rs-bonus-win-overlay');
+    if (!overlay) return;
+    var label = document.getElementById('rs-bonus-win-label');
+    var amt   = document.getElementById('rs-bonus-win-amt');
+    var spins = document.getElementById('rs-bonus-win-spins');
+    var tap   = document.getElementById('rs-bonus-win-tap');
+    if (label) label.textContent = 'RED SPIN COMPLETE!';
+    if (amt)   amt.textContent   = '$' + (totalWon || 0).toFixed(2);
+    if (spins) spins.textContent = (spinCount || 0) + ' SPINS';
+    if (tap)   tap.textContent   = 'TAP TO CONTINUE';
+    overlay.classList.add('active');
+    return new Promise(function(resolve) {
+      function onTap() {
+        overlay.classList.remove('active');
+        overlay.removeEventListener('click', onTap);
+        resolve();
+      }
+      overlay.addEventListener('click', onTap, { once: true });
+      setTimeout(function() { overlay.classList.remove('active'); resolve(); }, 5000);
+    });
+  }
+
   return {
-    init: init, renderGrid: renderGrid,
-    setPendingCoinMap: setPendingCoinMap, overlayReelCoinValues: overlayReelCoinValues, clearReelCoinOverlay: clearReelCoinOverlay,
+    init: init, renderGrid: renderGrid, buildHelpMenu: buildHelpMenu,
+
     animateReelsStop: animateReelsStop, showBaseWins: showBaseWins,
-    triggerHoldSpinExplosion: triggerHoldSpinExplosion,
-    updateBalance: updateBalance, updateWinDisplay: updateWinDisplay, updateBetDisplay: updateBetDisplay, updateJackpotMeters: updateJackpotMeters,
+    updateBalance: updateBalance, updateWinDisplay: updateWinDisplay, updateJackpotMeters: updateJackpotMeters,
     startInsertCashTicker: _startInsertCashTicker, stopInsertCashTicker: _stopInsertCashTicker,
     animateCreditCountup: animateCreditCountup,
     get isAnimatingCredits() { return isAnimatingCredits; },
     skipCreditAnimation: skipCreditAnimation,
-    showRedSpinEntry: showRedSpinEntry, updateRedSpinWin: updateRedSpinWin, showRedSpinPaylineFlash: showRedSpinPaylineFlash,
+    showRedSpinEntry: showRedSpinEntry, showRedSpinTier: showRedSpinTier, updateRedSpinWin: updateRedSpinWin, showRedSpinPaylineFlash: showRedSpinPaylineFlash,
     endRedSpin: endRedSpinBonus, endRedSpinBonus: endRedSpinBonus,
-    showHoldSpinBoard: showHoldSpinBoard, animateHoldSpinning: animateHoldSpinning,
-    startHoldSpinning: startHoldSpinning, clearHoldSpinning: clearHoldSpinning,
-    decelerateHoldSpinning: decelerateHoldSpinning, animateCoinLand: animateCoinLand,
-    updateRespinCounter: updateRespinCounter, showBlackoutCelebration: showBlackoutCelebration,
-    endHoldSpin: endHoldSpin, updateHoldTotal: updateHoldTotal,
-    flashJackpotCoin: flashJackpotCoin, showHoldBonusWinScreen: showHoldBonusWinScreen,
-    _spawnLightningBurst: _spawnLightningBurst, _spawnCounterSparks: _spawnCounterSparks,
     showPickChooseGrid: showPickChooseGrid, revealPickTile: revealPickTile, _lockAllPickTiles: _lockAllPickTiles,
     setPickTapCallback: setPickTapCallback, endPickChoose: endPickChoose, updatePickMatches: updatePickMatches, showPickChooseWin: showPickChooseWin,
-    showJackpotCelebration: showJackpotCelebration, setControlsEnabled: setControlsEnabled,
+    showJackpotCelebration: showJackpotCelebration, showMultiMiniCelebration: showMultiMiniCelebration, setControlsEnabled: setControlsEnabled,
     showBonusOrbScreen: showBonusOrbScreen, revealBonusOrbs: revealBonusOrbs, endBonusOrbScreen: endBonusOrbScreen, setOrbTapCallback: setOrbTapCallback,
     showBonusLetterWin: showBonusLetterWin,
     flashReelRed: flashReelRed, activateRedScreen: activateRedScreen, deactivateRedScreen: deactivateRedScreen, endRedSpinImmediate: endRedSpinImmediate,

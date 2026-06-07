@@ -1,7 +1,7 @@
 'use strict';
 
 // ── UNIFIED JACKPOT CHECK — v6l96 ────────────────────────────────────────────
-// Single roll at bonus entry (H&S, P&C, RS). Must-hit-by takes priority.
+// Single roll at bonus entry (P&C, RS). Must-hit-by takes priority.
 // PERMANENT RULE: Fire once per bonus trigger. Never per-spin or per-tile.
 // PERMANENT RULE: BONUS orb never calls this — only its sub-bonuses do.
 function _checkUnifiedJackpot() {
@@ -11,6 +11,7 @@ function _checkUnifiedJackpot() {
   for (var mhi = 0; mhi < tiers.length; mhi++) {
     var mhKey = tiers[mhi];
     var mhJp  = GameState.jackpots[mhKey];
+    // v8.1.0: 2% grace zone — fires when current >= mustHitBy × 0.98 (i.e. within 2% of cap)
     if (mhJp && mhJp.mustHitBy > 0 && mhJp.current >= mhJp.mustHitBy * 0.98) {
       logEvent('JACKPOT_MUST_HIT_BY_FORCED', { tier: mhKey, current: mhJp.current, cap: mhJp.mustHitBy });
       return mhKey;
@@ -60,16 +61,16 @@ var Bonuses = {
 // ═══════════════════════════════════════════════════════════════════════
 
 
-  async runRedSpin(betPerLine, linesActive, callerContext) {
+  runRedSpin: async function(betPerLine, linesActive, callerContext) { // v8.1.7: async fn expression — was ES6 async method shorthand (BUG-V3)
     if (callerContext === undefined) callerContext = {};
-    // ── RS PER-TIER JACKPOT SYSTEM (v7.0.4) ─────────────────────────────────
+    // ── RS PER-TIER JACKPOT SYSTEM (v8.1.1) ─────────────────────────────────
     // Jackpot check fires at each tier ENTRY via _rollTierJackpot().
     // T1 (index 0): MINI or MAJOR/MINOR/GRAND via unified probs
     // T2 (index 1): MINOR if MINOR progressive ≥ 3× totalBet, else MINI. GRAND always eligible.
     // T3 (index 2): MAJOR designated. GRAND always eligible.
     // T4 (index 3): GRAND always. 4-oak wild combos ascending then GRAND jackpot forced.
     // NO unified entry check at RS start — RS uses per-tier checks exclusively.
-    // H&S and P&C use the unified entry check. RS tier system is separate.
+    // P&C uses the unified entry check. RS tier system is separate.
     // Both draw from the same progressive pool via awardJackpot().
     var _tierJackpot       = null;  // jackpot type won at current tier entry
     var _tierJpSpinsLeft   = 0;     // normal spins to play before jackpot spin
@@ -101,7 +102,7 @@ var Bonuses = {
     //   - Grand jackpot hit always ends the sequence
     //
     // BONUSES WITHIN SEQUENCE:
-    //   - H&S, P&C, BONUS letters CAN trigger on RS spins (same as base)
+    //   - P&C, BONUS letters CAN trigger on RS spins (same as base)
     //   - Additional RS awards: player must re-trigger naturally after RS ends
     //     and dispatched after the primary sequence completes
     //
@@ -112,6 +113,10 @@ var Bonuses = {
     // ══════════════════════════════════════════════════════════════════
 
     GameState.activeBonus = 'RED_SPIN';
+    // v8.1.58: Acquire wake lock at RS start — screen must not dim during long RS sessions
+    if (typeof window !== 'undefined' && typeof window._gameAcquireWakeLock === 'function') {
+      window._gameAcquireWakeLock();
+    }
     var totalBet    = betPerLine * linesActive;
     var op          = GameState.operator;
     var bonusTotal  = 0;
@@ -125,44 +130,155 @@ var Bonuses = {
                         : totalBet;
     var spinNum    = 0;
     var grandHit   = false;
-    var currentTier = 0;           // index into RED_SPIN_TIERS
-    var firstInTier = true;        // spin 1 of each tier is guaranteed
-    var lastPaylineKey = '';       // sorted winning lineIndex string from previous spin
-    var lastStops = [];            // reel stops from previous spin (for repeat detection)
 
-    var TIERS      = (typeof RED_SPIN_TIERS !== 'undefined') ? RED_SPIN_TIERS : [
-      { name:'SMALL',   minMult:1,   maxMult:10   },
-      { name:'MEDIUM',  minMult:10,  maxMult:35   },
-      { name:'LARGE',   minMult:35,  maxMult:200  },
-      { name:'SISTERS', minMult:null, maxMult:null },
+    // v8.1.29 CRITICAL FIX: TIERS was referenced 8x but never declared after the
+    // v8.1.24 rewrite — every Red Spin threw "TIERS is not defined" and was silently
+    // swallowed by the try/catch in game.js, so RS never ran. Restored here.
+    // v8.1.40: fallback values updated to match MC-calibrated RED_SPIN_TIERS.
+    var TIERS = (typeof RED_SPIN_TIERS !== 'undefined') ? RED_SPIN_TIERS : [
+      { tier:1, name:'Small',   minMult:0.10, maxMult:0.80 },
+      { tier:2, name:'Medium',  minMult:1.00, maxMult:3.00 },
+      { tier:3, name:'Large',   minMult:3.50, maxMult:8.00 },
+      { tier:4, name:'Sisters', minMult:10,   maxMult:50   },
     ];
-    var ADVANCE_PROB  = (typeof RED_SPIN_TIER_ADVANCE_PROB !== 'undefined') ? RED_SPIN_TIER_ADVANCE_PROB : 0.20;
-    // JP_ODDS / JP_TYPES / jpFiredThisTier removed v6l99 — per-tier jackpot handled by _rollTierJackpot().
 
-    // ── v7.0.2 SWEEP MODE ───────────────────────────────────────────────────
-    // When op.rsSweepMode is true, RS plays through all winning symbol combinations
-    // within each tier's win range for QA verification. Ascending rule is suspended.
+    // v8.1.23: Random tier entry — RS can trigger directly into any tier.
+    // RED_SPIN_ENTRY_PROBS = [T1=65%, T2=25%, T3=8%, T4=2%].
+    // Cumulative roll: pick highest tier index whose cumulative prob the RNG roll clears.
+    var _ENTRY_PROBS = (typeof RED_SPIN_ENTRY_PROBS !== 'undefined') ? RED_SPIN_ENTRY_PROBS : [0.65, 0.25, 0.08, 0.02];
+    function _rollEntryTier() {
+      var roll = rng.next(); // 0–1
+      var cumulative = 0;
+      for (var _ei = 0; _ei < _ENTRY_PROBS.length; _ei++) {
+        cumulative += _ENTRY_PROBS[_ei];
+        if (roll < cumulative) return _ei;
+      }
+      return 0; // fallback
+    }
+    var currentTier = (op.forceRSEntryTier >= 0 && op.forceRSEntryTier <= 3)
+      ? op.forceRSEntryTier
+      : _rollEntryTier();
+    if (op.forceRSEntryTier >= 0) op.forceRSEntryTier = -1; // one-shot
+    logEvent('RED_SPIN_ENTRY_TIER', { tierIndex: currentTier, tierName: (TIERS[currentTier] || {}).name || 'T'+(currentTier+1) });
+    var firstInTier = true;
+    var _rsMiniCount = 0;
+    var lastPaylineKey = '';
+    var lastStops = [];
+    var _tierSteps   = [];   // v8.1.25: current tier's RNG step sequence
+    var _tierStepIdx = 0;    // v8.1.25: which step we're delivering next
+
+    // ── v8.1.25 STEP SEQUENCE ────────────────────────────────────────────────
+    // Owner confirmed 2026-05-28: Fixed tier ranges with RNG delivery.
+    // At each tier entry, RNG picks step count (4-6), spaces steps evenly
+    // floor-to-ceiling, snaps each to nearest real paytable win. Player sees
+    // wins escalate across the full tier range — extended anticipation.
+    // Ascending rule carries over across tiers.
+    // Advance probs restored: [15%, 25%, 40%] at T1-T2, T2-T3, T3-T4.
+
+    var ADVANCE_PROB = (typeof RED_SPIN_TIER_ADVANCE_PROB !== 'undefined') ? RED_SPIN_TIER_ADVANCE_PROB : [0.15, 0.25, 0.40];
+    var STEP_MIN = (typeof RED_SPIN_STEP_COUNT_MIN !== 'undefined') ? RED_SPIN_STEP_COUNT_MIN : 4;
+    var STEP_MAX = (typeof RED_SPIN_STEP_COUNT_MAX !== 'undefined') ? RED_SPIN_STEP_COUNT_MAX : 6;
+
+    function _tierWinCandidates(tier) {
+      var minW = tier.minMult * totalBet;
+      var maxW = tier.maxMult * totalBet;
+      var wins = [];
+      var symKeys = Object.keys(PAY_TABLE);
+      // v8.1.38: wild configs expanded to cover all possible Josie/Sasha combos (up to 4 wilds in a 5-oak).
+      // Formula mirrors evaluateLine exactly: mult = 1 + (josie×2) + (sasha×1), additive, no cap.
+      // All-wild combos (baseSymCount=0) excluded — they pay $0 per design.
+      var counts = [3, 4, 5];
+      var wildCfgs = [
+        [0,0], // no wilds
+        [1,0],[0,1],           // 1 wild
+        [2,0],[1,1],[0,2],     // 2 wilds
+        [3,0],[2,1],[1,2],[0,3], // 3 wilds
+        [4,0],[3,1],[2,2],[1,3],[0,4], // 4 wilds (only valid for 5-oak combos)
+      ];
+      for (var _si = 0; _si < symKeys.length; _si++) {
+        var _pays = PAY_TABLE[symKeys[_si]];
+        if (!_pays) continue;
+        for (var _ci = 0; _ci < counts.length; _ci++) {
+          var _pidx = Math.max(0, 5 - counts[_ci]);
+          if (!_pays[_pidx]) continue;
+          var _base = _pays[_pidx] * betPerLine;
+          if (_base === 0) continue; // skip Josie/Sasha/Sisters/Lipstick (all zero)
+          for (var _wi = 0; _wi < wildCfgs.length; _wi++) {
+            var _jc = wildCfgs[_wi][0], _sc = wildCfgs[_wi][1];
+            if (counts[_ci] - _jc - _sc < 1) continue; // must have at least 1 base symbol
+            if (_jc + _sc >= counts[_ci]) continue;      // all-wild combos excluded
+            // v8.1.38: additive multiplier, no cap — mirrors evaluateLine exactly
+            var _mult = 1 + (_jc * 2) + (_sc * 1);
+            var _win = _base * _mult;
+            if (_win >= minW && _win <= maxW && wins.indexOf(_win) < 0) wins.push(_win);
+          }
+        }
+      }
+      wins.sort(function(a,b){return a-b;});
+      return wins;
+    }
+
+    function _snapToWin(target, candidates) {
+      if (!candidates.length) return target;
+      var best = candidates[0], bestDist = Math.abs(target - candidates[0]);
+      for (var _i = 1; _i < candidates.length; _i++) {
+        var d = Math.abs(target - candidates[_i]);
+        if (d < bestDist) { bestDist = d; best = candidates[_i]; }
+      }
+      return best;
+    }
+
+    function _rollTierSequence(tierIdx, floorOverride) {
+      var tier = TIERS[tierIdx];
+      if (!tier) return [];
+      var stepCount = (op.forceRSStepCount >= 4 && op.forceRSStepCount <= 6)
+        ? op.forceRSStepCount
+        : (STEP_MIN + Math.floor(rng.next() * (STEP_MAX - STEP_MIN + 1)));
+      var floor = Math.max(tier.minMult * totalBet, floorOverride || 0);
+      var ceiling = tier.maxMult * totalBet;
+      var candidates = _tierWinCandidates(tier);
+      if (!candidates.length) return [];
+      var steps = [];
+      for (var _s = 0; _s < stepCount; _s++) {
+        var frac = (stepCount > 1) ? _s / (stepCount - 1) : 0.5;
+        var idealTarget = floor + frac * (ceiling - floor);
+        var lastStep = steps.length ? steps[steps.length - 1] : (floor - 0.01);
+        var above = candidates.filter(function(w) { return w > lastStep; });
+        if (!above.length) above = candidates;
+        var snapped = _snapToWin(idealTarget, above);
+        if (steps.indexOf(snapped) < 0) {
+          steps.push(snapped);
+        } else {
+          for (var _ai = 0; _ai < above.length; _ai++) {
+            if (above[_ai] > lastStep && steps.indexOf(above[_ai]) < 0) { steps.push(above[_ai]); break; }
+          }
+        }
+      }
+      logEvent('RED_SPIN_SEQUENCE_GENERATED', { tier: tier.name, steps: steps, stepCount: steps.length });
+      return steps;
+    }
+
+        // ── v7.0.2 SWEEP MODE ───────────────────────────────────────────────────
     var _sweepMode    = !!(op.rsSweepMode);
     var _sweepTier    = (op.rsSweepTier !== undefined) ? op.rsSweepTier : -1;
-    var _sweepList    = [];   // flat ordered list of sweep cases across target tiers
-    var _sweepIdx     = 0;    // current position in _sweepList
+    var _sweepList    = [];
+    var _sweepIdx     = 0;
 
-    // Generate sweep cases for a single tier — all (symbolKey, count, wildConfig) combos
-    // whose per-payline win falls within [tier.minMult, tier.maxMult] × totalBet.
     function _buildSweepCasesForTier(tierIdx) {
       var tier = TIERS[tierIdx];
       if (!tier || tier.minMult === null) {
-        // T4 Sisters tier — one special case: GRAND (Sisters 5-oak)
         return [{ type:'SISTERS', tierIdx: tierIdx, winAmount: totalBet * 1000 }];
       }
       var minW = tier.minMult * totalBet;
       var maxW = tier.maxMult * totalBet;
       var cases = [];
-      var symKeys = ['SINGLE_BAR','DOUBLE_BAR','TRIPLE_BAR','DIAMOND','SEVEN','DJ_MAXINE','STRAYPUP','JOSIE','SASHA'];
+      // v8.1.38: Josie/Sasha pay $0 — exclude from sweep cases. Only paying symbols.
+      var symKeys = ['SINGLE_BAR','DOUBLE_BAR','TRIPLE_BAR','DOLLAR_BILLS','DIAMOND','SEVEN','DJ_MAXINE','STRAYPUP'];
       var counts  = [3, 4, 5];
-      // Wild multiplier configs: [josieCount, sashaCount]
-      var wildCfgs = [[0,0],[1,0],[0,1],[1,1],[2,0],[2,1],[2,2]];
-
+      var wildCfgs = [
+        [0,0],[1,0],[0,1],[2,0],[1,1],[0,2],
+        [3,0],[2,1],[1,2],[0,3],[4,0],[3,1],[2,2],[1,3],[0,4],
+      ];
       for (var ski = 0; ski < symKeys.length; ski++) {
         var sk = symKeys[ski];
         if (!PAY_TABLE || !PAY_TABLE[sk]) continue;
@@ -174,34 +290,21 @@ var Bonuses = {
           var basePay = pays[payIdx];
           for (var wi = 0; wi < wildCfgs.length; wi++) {
             var jc = wildCfgs[wi][0]; var sc = wildCfgs[wi][1];
-            // Wilds occupy slots — match symbol needs at least 1 slot
             if (cnt - jc - sc < 1) continue;
-            // Skip wild-on-wild (Josie/Sasha don't need additional wilds)
-            if ((sk === 'JOSIE' || sk === 'SASHA') && (jc > 0 || sc > 0)) continue;
-            var mult = Math.max(1, jc * 2 + sc * 1);
+            if (jc + sc >= cnt) continue; // all-wild excluded
+            // v8.1.38: additive multiplier, no cap — mirrors evaluateLine exactly
+            var mult = 1 + (jc * 2) + (sc * 1);
             var winAmt = basePay * betPerLine * mult;
             if (winAmt >= minW && winAmt <= maxW) {
-              cases.push({ type:'PAYLINE', symKey:sk, count:cnt, josie:jc, sasha:sc, mult:mult, winAmount:winAmt, tierIdx:tierIdx });
+              cases.push({ type:'combo', symKey:sk, count:cnt, josie:jc, sasha:sc, winAmount:winAmt });
             }
           }
         }
       }
-      // Mixed bar combos
-      var mbPay = (typeof MIXED_BAR_PAY !== 'undefined') ? MIXED_BAR_PAY : {};
-      var mbCounts = [3, 4, 5];
-      for (var mbi = 0; mbi < mbCounts.length; mbi++) {
-        var mbc = mbCounts[mbi];
-        var mbW = (mbPay[mbc] || 0) * betPerLine;
-        if (mbW >= minW && mbW <= maxW) {
-          cases.push({ type:'MIXED_BAR', count:mbc, winAmount:mbW, tierIdx:tierIdx });
-        }
-      }
-      // Sort ascending so wins escalate naturally
-      cases.sort(function(a, b) { return a.winAmount - b.winAmount; });
+      cases.sort(function(a,b){return a.winAmount - b.winAmount;});
       return cases;
     }
 
-    // Build a grid that displays the given sweep case on the center payline ([1,1,1,1,1])
     function _buildSweepGrid(swCase) {
       var centerLine = PAYLINES[0]; // [1,1,1,1,1] — middle row
       // Start with random stops for variety in the non-target cells
@@ -240,6 +343,24 @@ var Bonuses = {
       return { stops: stops, grid: grid };
     }
 
+    // FIX-9 v8.1.48: Hoisted from inside the else{} block — function declarations in block
+    // scope are illegal in strict mode ES5 and may throw ReferenceError on Samsung Browser /
+    // older WebKit. Moved here alongside the other helper functions (_rollEntryTier, etc.).
+    function _rsHasBonusTrigger(g) {
+      var centerLine = PAYLINES[0];
+      var allLipstick = true;
+      for (var _lc = 0; _lc < 5; _lc++) {
+        if (g[_lc][centerLine[_lc]] !== BONUS_PC_ID) { allLipstick = false; break; }
+      }
+      if (allLipstick) return true;
+      var allLetters = true;
+      for (var _bc = 0; _bc < 5; _bc++) {
+        if (g[_bc][2] !== LETTER_IDS[_bc]) { allLetters = false; break; }
+      }
+      if (allLetters) return true;
+      return false;
+    }
+
     if (_sweepMode) {
       // Build the full sweep list across target tiers
       var tierRange = (_sweepTier === -1) ? [0, 1, 2, 3] : [_sweepTier];
@@ -259,31 +380,36 @@ var Bonuses = {
       return res.paylineWins.map(function(w) { return w.lineIndex; }).sort().join(',');
     }
 
-    // pendingRedSpins removed v6l97 — additional RS via natural base game trigger only.
+    // v8.1.1 — additional RS via natural base game trigger only.
 
     // Activate red screen + music
+    // BUG-RS-1 FIX (v8.1.17): startRedSpinMusic() moved to immediately after activateRedScreen(),
+    // before showRedSpinEntry(). Previously fired after the 600ms entry flash, which put it too far
+    // from the user gesture on iOS/Android — el.play() was silently rejected. Music now starts
+    // the instant the screen goes red, matching the visual transition.
     if (typeof UI !== 'undefined') {
       try {
         await UI.activateRedScreen();
-        await UI.showRedSpinEntry(0, 0);
       } catch(actErr) {
-        console.error('[RS] activateRedScreen/showRedSpinEntry threw:', actErr && actErr.message ? actErr.message : actErr);
+        console.error('[RS] activateRedScreen threw:', actErr && actErr.message ? actErr.message : actErr);
       }
     }
     if (typeof Audio !== 'undefined') Audio.startRedSpinMusic();
+    if (typeof UI !== 'undefined') {
+      try {
+        await UI.showRedSpinEntry(0, 0);
+      } catch(entryErr) {
+        console.error('[RS] showRedSpinEntry threw:', entryErr && entryErr.message ? entryErr.message : entryErr);
+      }
+    }
     if (typeof UI !== 'undefined') UI.setControlsEnabled(false);
 
     logEvent('RED_SPIN_START', {
-      bonusType:'RED_SPIN', betPerLine, linesActive, totalBet,
+      bonusType:'RED_SPIN', betPerLine: betPerLine, linesActive: linesActive, totalBet: totalBet,
       balanceBefore: GameState.balance
     });
 
     // ── Helper: find a real grid where the given jackpot type fires ─────────
-    // v7.0.2 REWRITE: deterministic strip scan replaces 800-attempt random search.
-    // OLD: random rolls had ~22% success for MINI/MINOR, ~0% for GRAND/MAJOR.
-    // NEW: scans actual reel strips to find valid stop positions guaranteed to
-    //      show the required jackpot symbols in the correct payline row.
-    //      Falls back to 400 random attempts only if strip scan somehow fails.
     function _findJpGrid(jpType) {
       var activeLines = PAYLINES.slice(0, linesActive);
 
@@ -294,77 +420,108 @@ var Bonuses = {
         var st = lines[si]; lines[si] = lines[sj]; lines[sj] = st;
       }
 
-      // Number of reels that must show the jackpot symbol
-      // MINI/MINOR: 3 consecutive from reel 0
-      // MAJOR/GRAND: all 5
-      var numJpReels = (jpType === 'GRAND' || jpType === 'MAJOR') ? 5 : 3;
+      // v8.1.38: JP trigger rules confirmed by owner 2026-05-29:
+      // MINI:  5× Sasha only, center line (row 1 all 5 reels)
+      // MINOR: 5× Josie only, center line (row 1 all 5 reels)
+      // MAJOR: 5 mixed wilds (Josie+Sasha, must have both), any payline
+      // GRAND: 5× Sisters, any payline
+      // All require exactly 5 matching symbols — no partial combos.
 
-      for (var li = 0; li < lines.length; li++) {
-        var line  = lines[li];
+      // For MINI/MINOR: must be center line (row index 1), all 5 reels
+      // Force search on center line only
+      var searchLines = lines;
+      if (jpType === 'MINI' || jpType === 'MINOR') {
+        // Center line = PAYLINES[0] = [1,1,1,1,1]
+        var centerLine = null;
+        for (var cli = 0; cli < activeLines.length; cli++) {
+          if (activeLines[cli][0]===1 && activeLines[cli][1]===1 && activeLines[cli][2]===1 &&
+              activeLines[cli][3]===1 && activeLines[cli][4]===1) {
+            centerLine = activeLines[cli]; break;
+          }
+        }
+        searchLines = centerLine ? [centerLine] : [];
+      }
+
+      for (var li = 0; li < searchLines.length; li++) {
+        var line  = searchLines[li];
         var stops = [];
         var ok    = true;
 
         for (var col = 0; col < 5; col++) {
           var strip      = REEL_STRIPS[col];
           var targetRow  = line[col];
+          var valid = [];
 
-          if (col < numJpReels) {
-            // ── Find stops that place the jackpot symbol in targetRow ──────
-            var valid = [];
-            for (var s = 0; s < strip.length; s++) {
-              var sym = strip[(s + targetRow) % strip.length];
-              var hit;
-              if      (jpType === 'MINI')   hit = (sym === SYMBOLS.SASHA.id);
-              else if (jpType === 'MINOR')  hit = (sym === SYMBOLS.JOSIE.id);
-              else if (jpType === 'MAJOR')  hit = (WILD_IDS.indexOf(sym) >= 0);
-              else /* GRAND */              hit = (sym === SYMBOLS.SISTERS.id);
-              if (hit) valid.push(s);
-            }
-            if (valid.length === 0) { ok = false; break; }
-            stops.push(valid[Math.floor(rng.next() * valid.length)]);
-
-          } else {
-            // ── Reels beyond the jackpot window (reels 3-4 for MINI/MINOR) ──
-            // Prefer stops that do NOT show wild symbols at targetRow.
-            // This prevents accidentally upgrading MINI→MAJOR or MINOR→MAJOR
-            // when reels 3-4 happen to also show Josie/Sasha.
-            if (jpType === 'MINI' || jpType === 'MINOR') {
-              var safe = [];
-              for (var ss = 0; ss < strip.length; ss++) {
-                var safeSym = strip[(ss + targetRow) % strip.length];
-                if (WILD_IDS.indexOf(safeSym) < 0) safe.push(ss);
-              }
-              stops.push(safe.length > 0
-                ? safe[Math.floor(rng.next() * safe.length)]
-                : Math.floor(rng.next() * strip.length));
-            } else {
-              stops.push(Math.floor(rng.next() * strip.length));
-            }
+          for (var s = 0; s < strip.length; s++) {
+            // BUG-JP1 FIX v8.1.49: getVisibleSymbols maps rows as:
+            //   row0=strip[stop-1], row1=strip[stop], row2=strip[stop+1]
+            // To land a symbol at targetRow r, we need strip[stop + (r-1)] = symbol,
+            // so we search for stop s where strip[(s + r - 1 + len) % len] = symbol.
+            // Previous formula strip[(s + targetRow) % len] was off by +1 — symbols
+            // landed one row below target, causing checkCharacterJackpots to miss them
+            // and processCharacterJackpots to award nothing.
+            var sym = strip[(s + targetRow - 1 + strip.length) % strip.length];
+            var hit = false;
+            if      (jpType === 'MINI')  hit = (sym === SYMBOLS.SASHA.id);
+            else if (jpType === 'MINOR') hit = (sym === SYMBOLS.JOSIE.id);
+            else if (jpType === 'MAJOR') hit = (WILD_IDS.indexOf(sym) >= 0); // any wild — checked for mix below
+            else /* GRAND */             hit = (sym === SYMBOLS.SISTERS.id);
+            if (hit) valid.push(s);
           }
+
+          if (valid.length === 0) { ok = false; break; }
+          stops.push(valid[Math.floor(rng.next() * valid.length)]);
         }
 
         if (!ok) continue;
 
         var grid = buildGrid(stops);
+
+        // v8.1.38: For MAJOR, verify the line has BOTH Josie and Sasha (mixed wilds).
+        // A line of all Josie = MINOR, all Sasha = MINI — neither qualifies for MAJOR.
+        // If mix check fails, rebuild with explicit Josie+Sasha placement.
+        if (jpType === 'MAJOR') {
+          var lineSyms = line.map(function(row, c) { return grid[c][row]; });
+          var hasJosie = lineSyms.some(function(s) { return s === SYMBOLS.JOSIE.id; });
+          var hasSasha = lineSyms.some(function(s) { return s === SYMBOLS.SASHA.id; });
+          if (!hasJosie || !hasSasha) {
+            // Force at least 1 Josie and 1 Sasha on this line
+            // Place Josie on reel 0, Sasha on reel 1, fill rest with either wild
+            var majorStops = stops.slice();
+            for (var mc = 0; mc < 5; mc++) {
+              var mStrip = REEL_STRIPS[mc];
+              var mTarget = line[mc];
+              var mWant = (mc === 0) ? SYMBOLS.JOSIE.id : (mc === 1) ? SYMBOLS.SASHA.id : null;
+              if (mWant !== null) {
+                var mValid = [];
+                for (var ms = 0; ms < mStrip.length; ms++) {
+                  if (mStrip[(ms + mTarget) % mStrip.length] === mWant) mValid.push(ms);
+                }
+                if (mValid.length > 0) majorStops[mc] = mValid[Math.floor(rng.next() * mValid.length)];
+              }
+            }
+            grid = buildGrid(majorStops);
+            stops = majorStops;
+          }
+        }
+
         var hits = checkCharacterJackpots(grid, linesActive);
-        // Verify we got the right tier (another payline might have triggered a higher tier)
         if (hits.indexOf(jpType) >= 0) return { stops: stops, grid: grid };
-        // Mismatch (rare edge case) — try next payline
       }
 
-      // Emergency random fallback — should almost never reach here
+      // Emergency random fallback
       for (var _ji = 0; _ji < 400; _ji++) {
         var _s = REEL_STRIPS.map(function(r) { return Math.floor(rng.next() * r.length); });
         var _g = buildGrid(_s);
         var _h = checkCharacterJackpots(_g, linesActive);
         if (_h.indexOf(jpType) >= 0) return { stops: _s, grid: _g };
       }
-      return null; // truly unreachable under normal reel configurations
+      return null;
     }
 
     // ── Helper: fire tier-entry jackpot check (unified system) ──────────
     // Each RS tier entry is a full unified jackpot check — same system as
-    // H&S and P&C. All four tiers eligible at every tier entry.
+    // P&C. All four tiers eligible at every tier entry.
     // Must-hit-by caps enforced first (highest tier priority).
     // GRAND always eligible. T4 also allows MAJOR/MINOR if progressive qualifies.
     // The "designated" tier jackpot determines which symbols appear on the
@@ -377,7 +534,8 @@ var Bonuses = {
       for (var mhi = 0; mhi < tiers.length; mhi++) {
         var mhKey = tiers[mhi];
         var mhJp  = GameState.jackpots[mhKey];
-        if (mhJp && mhJp.mustHitBy > 0 && mhJp.current >= mhJp.mustHitBy * 0.98) {
+        // v8.1.0: 2% grace zone — fires when current >= mustHitBy × 0.98 (i.e. within 2% of cap)
+    if (mhJp && mhJp.mustHitBy > 0 && mhJp.current >= mhJp.mustHitBy * 0.98) {
           logEvent('JACKPOT_MUST_HIT_BY_FORCED', { tier:mhKey, current:mhJp.current, cap:mhJp.mustHitBy, context:'RED_SPIN_TIER_'+tierIndex });
           return mhKey;
         }
@@ -396,20 +554,25 @@ var Bonuses = {
         logEvent('JACKPOT_OPERATOR_FORCED', { tier: designatedJp, context: 'RED_SPIN_TIER_MAP_'+tierIndex });
         return designatedJp;
       }
-      // Legacy: forceJackpotQueue (used by non-RS bonuses — pop if ANY tier is targeted)
-      var rsTier = (opRS.forceRSTier !== undefined) ? opRS.forceRSTier : -1;
+      // FIX (v8.1.36): forceJackpotQueue fallback — consumed when no tierMap entry.
+      // toggleComboJP populates forceJackpotQueue; this path makes RS consume it
+      // the same way P&C does via _checkUnifiedJackpot (one pop per tier entry).
       if (opRS.forceJackpotQueue && opRS.forceJackpotQueue.length > 0 &&
-          (rsCtx === 'bonus' || rsCtx === 'any') &&
-          (rsTier === -1 || rsTier === tierIndex)) {
-        var rsForcedTier = opRS.forceJackpotQueue.shift();
-        logEvent('JACKPOT_OPERATOR_FORCED', { tier: rsForcedTier, context: 'RED_SPIN_TIER_QUEUE_'+tierIndex, remaining: opRS.forceJackpotQueue.length });
-        if (opRS.forceJackpotQueue.length === 0) { opRS.forceJackpot = 'none'; }
-        return rsForcedTier;
+          (rsCtx === 'bonus' || rsCtx === 'any')) {
+        var _rsQueueTier = opRS.forceJackpotQueue.shift();
+        if (opRS.forceJackpotQueue.length === 0) opRS.forceJackpot = 'none';
+        logEvent('JACKPOT_OPERATOR_FORCED', { tier: _rsQueueTier, context: 'RED_SPIN_QUEUE_'+tierIndex });
+        return _rsQueueTier;
       }
+      // Legacy forceRSTier removed v8.1.2 — forceJackpotQueue handled below via forceJackpot
+      // forceRSTier was a stale property written by a duplicate setRSTier function (now removed)
+      // FIX-A (v8.1.10): removed dead `(rsTier === -1 || rsTier === tierIndex)` condition —
+      // rsTier was never declared in this scope (forceRSTier removed v8.1.2). Referencing it
+      // threw a ReferenceError whenever forceJackpot was non-null in saved operator state,
+      // crashing runRedSpin() and producing "Spin error — please try again" toast.
       // Legacy single forceJackpot
       if (opRS.forceJackpot && opRS.forceJackpot !== 'none' &&
-          (rsCtx === 'bonus' || rsCtx === 'any') &&
-          (rsTier === -1 || rsTier === tierIndex)) {
+          (rsCtx === 'bonus' || rsCtx === 'any')) {
         var rsLegTier = opRS.forceJackpot;
         opRS.forceJackpot = 'none';
         logEvent('JACKPOT_OPERATOR_FORCED', { tier: rsLegTier, context: 'RED_SPIN_TIER_LEGACY_'+tierIndex });
@@ -461,17 +624,17 @@ var Bonuses = {
         // Update tier display to match the sweep case's tier
         currentTier = _sweepCase.tierIdx || 0;
         var _sTier = TIERS[currentTier] || TIERS[0];
-        if (typeof UI !== 'undefined') {
-          await UI.animateReelsStop(_sg.stops, _sg.grid);
-          if (typeof UI.showRedSpinPaylineFlash !== 'undefined' && _sResult.paylineWins) {
-            await UI.showRedSpinPaylineFlash(_sResult.paylineWins);
-          }
-          UI.updateRedSpinWin(_sWin, bonusTotal + _sWin, spinNum);
-          UI.showRedSpinTier(_sTier.name, spinNum);
-        }
         bonusTotal += _sWin;
         GameState.balance += _sWin;
-        if (typeof UI !== 'undefined') UI.updateBalance(GameState.balance);
+        if (typeof UI !== 'undefined') {
+          await UI.animateReelsStop(_sg.stops, _sg.grid);
+          if (_sResult.paylineWins && _sResult.paylineWins.length > 0) {
+            await UI.showBaseWins(_sResult, betPerLine, linesActive, false, true);
+          }
+          UI.updateRedSpinWin(_sWin, bonusTotal, spinNum);
+          UI.updateBalance(GameState.balance);
+          UI.showRedSpinTier(_sTier.name, spinNum);
+        }
         lastWin = _sWin;
         logEvent('RS_SWEEP_SPIN', { sweepIdx: _sweepIdx, type: _sweepCase.type, symKey: _sweepCase.symKey, count: _sweepCase.count, winAmount: _sWin });
         await this._delay(1200);
@@ -480,13 +643,34 @@ var Bonuses = {
 
       var tier = TIERS[currentTier];
 
-      // ── Per-tier jackpot check on first spin of each tier ────────────
+      // ── v8.1.25: Generate step sequence at tier entry ────────────────
+      // firstInTier triggers sequence generation and JP check.
+      // _tierSteps holds the RNG-generated ascending win targets.
+      // _tierStepIdx tracks which step we're delivering next.
       if (firstInTier) {
+        _tierSteps   = _rollTierSequence(currentTier, lastWin);
+        _tierStepIdx = 0;
         _tierJackpot     = _rollTierJackpot(currentTier);
-        _tierJpSpinsLeft = _tierJackpot ? (1 + Math.floor(rng.next() * 3)) : 0; // 1-3 normal spins before JP
+        _tierJpSpinsLeft = _tierJackpot ? (1 + Math.floor(rng.next() * 3)) : 0;
         _tierJpFired     = false;
+        firstInTier = false;
         if (_tierJackpot) {
           logEvent('RS_TIER_JP_PENDING', { tier: tier.name, jpType: _tierJackpot, spinsBeforeJp: _tierJpSpinsLeft });
+        }
+        // FIX-7 v8.1.48: Empty step sequence guard — _rollTierSequence returns [] when no
+        // paytable wins fall within the tier's multiplier range at the current bet amount.
+        // Without this guard, _sequenceComplete=(0>=0)=true fires on spin 1, triggering the
+        // continuance check immediately and potentially ending RS after zero steps.
+        // Fix: advance to next tier (or end gracefully at T4) when sequence is empty.
+        if (_tierSteps.length === 0 && !_tierJackpot) {
+          logEvent('RS_EMPTY_SEQUENCE', { tier: tier.name, currentTier: currentTier });
+          if (currentTier < TIERS.length - 1) {
+            currentTier++; firstInTier = true; _tierJpFired = false;
+            lastPaylineKey = ''; _tierSteps = []; _tierStepIdx = 0;
+            continue; // advance to next tier and regenerate sequence
+          } else {
+            break; // T4 with empty sequence — end RS gracefully
+          }
         }
       }
 
@@ -502,215 +686,115 @@ var Bonuses = {
           result = evaluateSpin(grid, linesActive, betPerLine);
           spinWin = result.totalWin;
         } else {
-          // No matching grid found — award jackpot without symbol match (fallback)
           stops  = REEL_STRIPS.map(function(s) { return Math.floor(rng.next() * s.length); });
           grid   = buildGrid(stops);
           result = evaluateSpin(grid, linesActive, betPerLine);
           spinWin = result.totalWin;
-          // Force jackpot award directly
           var directJpAmt = awardJackpot(_tierJackpot);
           bonusTotal += directJpAmt;
           GameState.balance += directJpAmt;
+          if (_tierJackpot === 'MINI') { _rsMiniCount++; } // FIX-A3 v8.1.45: count MINI hits for multi-MINI celebration
           if (typeof UI !== 'undefined') await UI.showJackpotCelebration(_tierJackpot, directJpAmt, 'RED_SPIN');
           _tierJpFired = true;
           if (_tierJackpot === 'GRAND') { grandHit = true; }
         }
         _tierJpFired = true;
+        if (_tierJackpot === 'MINI') { _rsMiniCount++; } // FIX-A3 v8.1.45: count MINI hits for multi-MINI celebration
         _tierJackpot = null;
 
-      } else if (tier.name === 'SISTERS' || currentTier >= 3) {
-        // ── T4 Sisters tier (v7.0.4) ─────────────────────────────────────────
-        // Five 4-oak all-wild combos in ascending order (50→62.5→75→87.5→100× totalBet)
-        // then GRAND jackpot. Same ascending/continuance rules as T1-T3.
-        // matchSymbol = JOSIE (all-wild 4-oak), base pay 250. Josie=×2, Sasha=×1.
-        var T4_WILD_COMBOS = [
-          [0, 4, 50.0],   // 4S: ×4 → 50×
-          [1, 3, 62.5],   // 1J+3S: ×5 → 62.5×
-          [2, 2, 75.0],   // 2J+2S: ×6 → 75×
-          [3, 1, 87.5],   // 3J+1S: ×7 → 87.5×
-          [4, 0, 100.0],  // 4J: ×8 → 100×
-        ];
-        var tierMin4 = tier.minMult * totalBet;
-        var tierMax4 = tier.maxMult * totalBet;
-        var t4found  = false;
-
-        for (var t4ci = 0; t4ci < T4_WILD_COMBOS.length; t4ci++) {
-          var t4combo  = T4_WILD_COMBOS[t4ci];
-          var t4target = t4combo[2] * totalBet;
-          if (t4target < lastWin)   continue;
-          if (t4target < tierMin4)  continue;
-          if (t4target > tierMax4)  break;
-          var t4jc  = t4combo[0];
-          var t4sc  = t4combo[1];
-          var t4ln  = PAYLINES[0];
-          stops = REEL_STRIPS.map(function(s) { return Math.floor(rng.next() * s.length); });
-          grid  = buildGrid(stops);
-          var t4wi = 0;
-          for (var t4r = 0; t4r < 4; t4r++) {
-            grid[t4r][t4ln[t4r]] = (t4wi < t4jc) ? SYMBOLS.JOSIE.id : SYMBOLS.SASHA.id;
-            t4wi++;
-          }
-          grid[4][t4ln[4]] = SYMBOLS.LIPSTICK ? SYMBOLS.LIPSTICK.id : SYMBOLS.SINGLE_BAR.id;
-          result  = evaluateSpin(grid, linesActive, betPerLine);
-          spinWin = result.totalWin;
-          if (Math.abs(spinWin - t4target) > 0.01) { spinWin = t4target; }
-          lastStops = stops.slice();
-          lastPaylineKey = _paylineKey(result);
-          t4found = true;
-          logEvent('RED_SPIN_T4_WILD_COMBO', { spinNum: spinNum, jc: t4jc, sc: t4sc, target: t4target });
-          break;
-        }
-
-        if (!t4found) {
-          var sisId2   = SYMBOLS.SISTERS ? SYMBOLS.SISTERS.id : 0;
-          var sisStops = REEL_STRIPS.map(function(s) {
-            var idx = s.indexOf(sisId2);
-            return idx >= 0 ? idx : Math.floor(rng.next() * s.length);
-          });
-          stops  = sisStops;
-          grid   = buildGrid(stops);
-          result = evaluateSpin(grid, linesActive, betPerLine);
-          spinWin = result.totalWin;
-          grandHit = true;
-          logEvent('RED_SPIN_T4_GRAND_FORCED', { spinNum: spinNum, lastWin: lastWin });
-        }
-        if (_tierJpSpinsLeft > 0) _tierJpSpinsLeft--;
-
       } else {
-        // ── Tiers 1-3: find a real grid within tier range ─────────────
+        // ── v8.1.25: Deliver current step target ─────────────────────────
+        // Find real reel combo matching _tierSteps[_tierStepIdx], ascending from lastWin.
         if (_tierJpSpinsLeft > 0) _tierJpSpinsLeft--;
+
+        var _stepTarget = (_tierStepIdx < _tierSteps.length)
+          ? _tierSteps[_tierStepIdx]
+          : tier.maxMult * totalBet; // safety ceiling
+        // Floor = max(lastWin, step target floor)
+        var _floorWin = Math.max(lastWin, _stepTarget * 0.85); // allow 15% below target
 
         var tierMin = tier.minMult * totalBet;
         var tierMax = tier.maxMult * totalBet;
-
-        // ── v7.0.4: bonus trigger exclusion helper ────────────────────────
-        // Rejects any grid that would trigger H&S, P&C, or BONUS orb during RS.
-        // Individual partial BONUS letters (1-4) are allowed and pay normally.
-        // This helper is called at EVERY grid acceptance check in this loop.
-        function _rsHasBonusTrigger(g) {
-          // H&S: 6+ Gold Coins anywhere
-          var coins = 0;
-          for (var _rc = 0; _rc < 5; _rc++) {
-            for (var _rr = 0; _rr < 3; _rr++) {
-              if (g[_rc][_rr] === BONUS_ID) { coins++; if (coins >= 6) return true; }
-            }
-          }
-          // P&C: 5× Lipstick on center payline (row 1 of all 5 reels)
-          var centerLine = PAYLINES[0];
-          var allLipstick = true;
-          for (var _lc = 0; _lc < 5; _lc++) {
-            if (g[_lc][centerLine[_lc]] !== BONUS_PC_ID) { allLipstick = false; break; }
-          }
-          if (allLipstick) return true;
-          // BONUS orb: all 5 BONUS letters on bottom row simultaneously
-          var allLetters = true;
-          for (var _bc = 0; _bc < 5; _bc++) {
-            if (g[_bc][2] !== LETTER_IDS[_bc]) { allLetters = false; break; }
-          }
-          if (allLetters) return true;
-          return false;
-        }
-
-        // Regular spin: find real grid within tier range, beating lastWin, no bonus triggers
         var found = false;
         var attempts = 0;
-
         do {
           stops  = REEL_STRIPS.map(function(s) { return Math.floor(rng.next() * s.length); });
           grid   = buildGrid(stops);
           result = evaluateSpin(grid, linesActive, betPerLine);
           spinWin = result.totalWin;
-          var plKey = _paylineKey(result);
+          var plKey      = _paylineKey(result);
           var stopsMatch = lastStops.length === 5 && stops.every(function(s, si) { return s === lastStops[si]; });
           var plMatch    = plKey !== '' && plKey === lastPaylineKey;
-          var coinCount  = grid.reduce(function(n, col) { return n + col.filter(function(id) { return id === BONUS_ID; }).length; }, 0);
-          found = spinWin >= lastWin
-               && spinWin >= tierMin
+          // Accept if win is within the tier range, beats lastWin, and near the step target
+          found = spinWin >= _floorWin
                && spinWin <= tierMax
+               && spinWin >= tierMin
                && (!stopsMatch || !plMatch)
-               && coinCount < 6
-               && !_rsHasBonusTrigger(grid); // v7.0.4: exclude P&C, BONUS orb, H&S
+               && !_rsHasBonusTrigger(grid);
           attempts++;
         } while (!found && attempts < 500);
 
-          // Fallback R1×R2 scan within tier range
-          if (!found) {
-            logEvent('RED_SPIN_TIER_FALLBACK', { spinNum, tier: tier.name, lastWin, tierMin, tierMax });
-            var r3 = Math.floor(rng.next() * REEL_STRIPS[2].length);
-            var r4 = Math.floor(rng.next() * REEL_STRIPS[3].length);
-            var r5 = Math.floor(rng.next() * REEL_STRIPS[4].length);
-            outer: for (var f1 = 0; f1 < REEL_STRIPS[0].length; f1++) {
-              for (var f2 = 0; f2 < REEL_STRIPS[1].length; f2++) {
-                var fStops = [f1, f2, r3, r4, r5];
-                var fGrid  = buildGrid(fStops);
-                var fResult = evaluateSpin(fGrid, linesActive, betPerLine);
-                var fKey    = _paylineKey(fResult);
-                var fCoins  = fGrid.reduce(function(n, col) { return n + col.filter(function(id) { return id === BONUS_ID; }).length; }, 0);
-                if (fResult.totalWin >= lastWin
-                 && fResult.totalWin >= tierMin
-                 && fResult.totalWin <= tierMax
-                 && fKey !== lastPaylineKey
-                 && fCoins < 6
-                 && !_rsHasBonusTrigger(fGrid)) { // v7.0.4: exclude bonus triggers
-                  stops = fStops; grid = fGrid; result = fResult;
-                  spinWin = fResult.totalWin; found = true;
-                  break outer;
-                }
+        // ── FALLBACK: Relax step target, find any win in tier range ascending ──
+        if (!found) {
+          logEvent('RED_SPIN_STEP_FALLBACK', { spinNum: spinNum, tier: tier.name, stepTarget: _stepTarget });
+          var r3 = Math.floor(rng.next() * REEL_STRIPS[2].length);
+          var r4 = Math.floor(rng.next() * REEL_STRIPS[3].length);
+          var r5 = Math.floor(rng.next() * REEL_STRIPS[4].length);
+          outer: for (var f1 = 0; f1 < REEL_STRIPS[0].length; f1++) {
+            for (var f2 = 0; f2 < REEL_STRIPS[1].length; f2++) {
+              var fStops = [f1, f2, r3, r4, r5];
+              var fGrid  = buildGrid(fStops);
+              var fResult = evaluateSpin(fGrid, linesActive, betPerLine);
+              if (fResult.totalWin > lastWin && fResult.totalWin >= tierMin && fResult.totalWin <= tierMax && !_rsHasBonusTrigger(fGrid)) {
+                stops = fStops; grid = fGrid; result = fResult; spinWin = fResult.totalWin; found = true;
+                break outer;
               }
             }
           }
-
-          // Relax payline constraint if still not found
-          if (!found) {
-            logEvent('RED_SPIN_TIER_RELAX', { spinNum, tier: tier.name });
-            var r3b = Math.floor(rng.next() * REEL_STRIPS[2].length);
-            var r4b = Math.floor(rng.next() * REEL_STRIPS[3].length);
-            var r5b = Math.floor(rng.next() * REEL_STRIPS[4].length);
-            outer2: for (var g1 = 0; g1 < REEL_STRIPS[0].length; g1++) {
-              for (var g2 = 0; g2 < REEL_STRIPS[1].length; g2++) {
-                var gStops = [g1, g2, r3b, r4b, r5b];
-                var gGrid  = buildGrid(gStops);
-                var gResult = evaluateSpin(gGrid, linesActive, betPerLine);
-                var gCoins  = gGrid.reduce(function(n, col) { return n + col.filter(function(id) { return id === BONUS_ID; }).length; }, 0);
-                if (gResult.totalWin >= tierMin && gResult.totalWin <= tierMax && gCoins < 6 && !_rsHasBonusTrigger(gGrid)) { // v7.0.4: exclude bonus triggers
-                  stops = gStops; grid = gGrid; result = gResult;
-                  spinWin = gResult.totalWin; found = true;
-                  break outer2;
-                }
-              }
-            }
-          }
-
-          // Fallback: T1 → advance to T2. T2/T3 → end sequence (no cascade).
-          // T4 Sisters reached only via natural 20% advancement or JP chain.
-          if (!found) {
-            logEvent('RED_SPIN_TIER_FALLBACK_END', { spinNum, tier: tier.name });
-            if (currentTier === 0) {
-              currentTier = 1; firstInTier = true; _tierJpFired = false; // (was jpFiredThisTier)
-              lastPaylineKey = ''; continue;
-            } else {
-              break; // T2/T3 end sequence gracefully
-            }
-          }
-
-          lastPaylineKey = _paylineKey(result);
-          lastStops      = stops.slice();
         }
 
-      // ── Animate reels ────────────────────────────────────────────────
-      if (typeof UI !== 'undefined') {
-        await UI.animateReelsStop(stops, grid, false, true);
-        if (result.paylineWins && result.paylineWins.length > 0) {
-          await UI.showRedSpinPaylineFlash(result.paylineWins);
+        // ── FINAL FALLBACK: per-tier rules ────────────────────────────────
+        // T1: advance to T2. T2/T3: end gracefully. T4: end bonus (no forced GRAND).
+        if (!found) {
+          logEvent('RED_SPIN_TIER_FALLBACK_END', { spinNum: spinNum, tier: tier.name });
+          if (currentTier === 0) {
+            currentTier = 1; firstInTier = true; _tierJpFired = false;
+            lastPaylineKey = ''; _tierSteps = []; _tierStepIdx = 0;
+            continue;
+          } else {
+            break; // end sequence gracefully
+          }
         }
+
+        lastPaylineKey = _paylineKey(result);
+        lastStops      = stops.slice();
+        _tierStepIdx++;  // advance to next step in sequence
       }
 
-      // ── Award win ────────────────────────────────────────────────────
+      // ── Animate reels ────────────────────────────────────────────────
+      // v8.1.58: Re-acquire wake lock each spin — OS may revoke it mid-bonus
+      if (typeof window !== 'undefined' && typeof window._gameAcquireWakeLock === 'function') {
+        window._gameAcquireWakeLock();
+      }
+      if (typeof UI !== 'undefined') {
+        await UI.animateReelsStop(stops, grid, false, true);
+      }
+
+      // ── Award win (credit balance before display so meters are live) ─
       bonusTotal += spinWin;
-      lastWin     = spinWin > 0 ? spinWin : lastWin; // Sisters: lastWin unchanged
+      lastWin     = spinWin > 0 ? spinWin : lastWin;
       GameState.balance += spinWin;
 
+      // ── Display wins exactly like base game (fast=true: one-shot, no loop) ──
+      // v8.1.34 FIX: RS previously used showRedSpinPaylineFlash — a lightweight
+      // 500ms flash with no per-line amounts, no win-line-label, no cycling.
+      // showBaseWins(result, betPerLine, linesActive, isReplay=false, fast=true)
+      // draws all paylines + cell highlights, cycles each winning line individually
+      // showing its dollar amount, ~800ms total, then clears. Matches base game exactly.
       if (typeof UI !== 'undefined') {
+        if (result.paylineWins && result.paylineWins.length > 0) {
+          await UI.showBaseWins(result, betPerLine, linesActive, false, true);
+        }
         await UI.updateRedSpinWin(spinWin, bonusTotal, spinNum);
         UI.updateBalance(GameState.balance);
       }
@@ -720,11 +804,12 @@ var Bonuses = {
       }
 
       logEvent('RED_SPIN', {
-        bonusType:'RED_SPIN', spinNum, tier: tier.name,
-        spinWin, bonusTotal, balanceAfter: GameState.balance
+        bonusType:'RED_SPIN', spinNum: spinNum, tier: (TIERS[currentTier]||{}).name,
+        spinWin: spinWin, bonusTotal: bonusTotal,
+        balanceAfter: GameState.balance
       });
 
-      // ── Jackpots on paylines (Sisters fires here) ────────────────────
+      // ── Jackpots on paylines (Sisters fires here naturally) ──────────
       var charJackpots = await processCharacterJackpots(grid, linesActive, 'RED_SPIN');
       if (charJackpots && charJackpots.totalAwarded > 0) {
         bonusTotal += charJackpots.totalAwarded;
@@ -733,65 +818,56 @@ var Bonuses = {
         if (charJackpots.hits && charJackpots.hits.indexOf('GRAND') >= 0) { grandHit = true; }
       }
 
-      // End immediately after Sisters
       if (grandHit) break;
 
       // ── Bonus triggers within Red Spin ───────────────────────────────
-      if (!op.disableHoldSpinInRedSpin && result.triggerHoldSpin) {
-        var hsResult = await this.runHoldSpin(betPerLine, linesActive, null, grid, { from:'RED_SPIN', noRestoreReels:true });
-        bonusTotal += hsResult.totalWon || 0;
-      }
       if (!op.disablePickChooseInRedSpin && result.scatterTriggered) {
         var pcResult = await this.runPickChoose(betPerLine, linesActive, { from:'RED_SPIN', triggerStops:stops, triggerGrid:grid });
         bonusTotal += pcResult.totalWon || 0;
-        // awardRedSpin from P&C inside RS noted but no auto-queue — player must trigger RS naturally.
       }
       if (result.bonusLetterCount === 5) {
-        var bResult = await this.runBonusFeature(betPerLine, linesActive, { from:'RED_SPIN' }); // noJackpots removed v6l99
+        var bResult = await this.runBonusFeature(betPerLine, linesActive, { from:'RED_SPIN' });
         bonusTotal += bResult.totalWon || 0;
-        if (bResult.awardHoldSpin) {
-          var hsR = await this.runHoldSpin(betPerLine, linesActive, null, grid, { from:'RED_SPIN_BONUS', noRestoreReels:true }); // noJackpots removed v6l96
-          bonusTotal += hsR.totalWon || 0;
-        } else if (bResult.awardPickChoose) {
-          var pcR = await this.runPickChoose(betPerLine, linesActive, { from:'RED_SPIN_BONUS' }); // noJackpots removed v6l96
+        if (bResult.awardPickChoose) {
+          var pcR = await this.runPickChoose(betPerLine, linesActive, { from:'RED_SPIN_BONUS' });
           bonusTotal += pcR.totalWon || 0;
-          // LETTERS_PC inside RS: any awardRedSpin is discarded — player triggers RS naturally after bonus ends.
-        } else if (bResult.awardRedSpin) {
-          // pendingRedSpins removed v6l97 — additional RS via natural base game trigger.
         }
       }
 
-      // ── Partial letter pays already included in result.totalWin ──────
-
-      // ── Continuance / tier advancement check ─────────────────────────
-      // Spin 1 of each tier is guaranteed — no check
-      if (firstInTier) { firstInTier = false; }
-      else {
-        var continuesInTier = rng.chance(RED_SPIN_CONTINUANCE_DEFAULT); // 60%
-        if (!continuesInTier) {
-          // Tier exhausted — check advancement (Option C array: 20%/30%/50% per boundary)
-          var hasNextTier = currentTier < TIERS.length - 1;
-          var advProb  = Array.isArray(ADVANCE_PROB) ? (ADVANCE_PROB[currentTier] || 0.20) : ADVANCE_PROB;
-          var advances = hasNextTier && rng.chance(advProb);
-          if (advances) {
+      // ── v8.1.25: Continuance / tier advancement ──────────────────────
+      // All steps in current sequence play guaranteed.
+      // After all steps complete → 70/30 continuance check.
+      //   70%: generate new sequence, stay in same tier.
+      //   30%: tier advance roll (restored probs [15%, 25%, 40%]).
+      var _sequenceComplete = (_tierStepIdx >= _tierSteps.length);
+      if (_sequenceComplete) {
+        var _cont = (GameState && GameState.operator && typeof GameState.operator.redSpinContinuance === 'number')
+          ? Math.min(0.95, Math.max(0.70, GameState.operator.redSpinContinuance))
+          : RED_SPIN_CONTINUANCE_DEFAULT;
+        if (rng.chance(_cont)) {
+          // Continue in same tier — generate fresh sequence from current lastWin
+          _tierSteps   = _rollTierSequence(currentTier, lastWin);
+          _tierStepIdx = 0;
+          logEvent('RED_SPIN_SEQUENCE_CONTINUE', { tier: tier.name, newSteps: _tierSteps });
+        } else {
+          // Continuance failed — tier advance check
+          var _hasNext = currentTier < TIERS.length - 1;
+          var _advProb = Array.isArray(ADVANCE_PROB) ? (ADVANCE_PROB[currentTier] || 0.15) : ADVANCE_PROB;
+          var _forceAdv = !!(op.forceRSAdvance);
+          if (_forceAdv) op.forceRSAdvance = false; // one-shot
+          if (_hasNext && (_forceAdv || rng.chance(_advProb))) {
             currentTier++;
             firstInTier = true;
             _tierJpFired = false;
-            lastPaylineKey = ''; lastStops = [];
-            logEvent('RED_SPIN_TIER_ADVANCE', { spinNum: spinNum, newTier: TIERS[currentTier].name, advProb: advProb });
+            _tierSteps = []; _tierStepIdx = 0;
+            logEvent('RED_SPIN_TIER_ADVANCE', { spinNum: spinNum, newTier: (TIERS[currentTier]||{}).name, advProb: _advProb, forced: _forceAdv });
           } else {
-            break; // sequence ends
+            logEvent('RED_SPIN_CONTINUANCE_END', { spinNum: spinNum, bonusTotal: bonusTotal });
+            break;
           }
         }
-        // Force tier advance if JP pushed lastWin above current tier ceiling
-        if (!grandHit && currentTier < TIERS.length - 1 && tier.maxMult && lastWin > tier.maxMult * totalBet) {
-          currentTier++;
-          firstInTier = true;
-          _tierJpFired = false;
-          lastPaylineKey = '';
-          logEvent('RED_SPIN_TIER_ADVANCE_JP', { spinNum: spinNum, newTier: TIERS[currentTier].name, lastWin: lastWin });
-        }
       }
+      // else: more steps remain in current sequence — continue automatically
 
       if (spinNum >= 200) break; // safety valve
     } // end while(true) tier loop
@@ -799,16 +875,19 @@ var Bonuses = {
     // ── Sequence complete ──────────────────────────────────────────────
     if (typeof Audio !== 'undefined') { try { Audio.stopRedSpinMusic(); } catch(e) { console.warn('[RS] stopRedSpinMusic error:', e); } }
     if (typeof UI !== 'undefined') {
+      // BUG-RS-SCREEN FIX (v8.1.17): Deactivate red screen FIRST so reels return to normal
+      // the instant RS ends. Previously deactivateRedScreen() was called AFTER
+      // showRedSpinEndCelebration() — red overlay persisted until player tapped or 5s elapsed.
+      try {
+        await UI.deactivateRedScreen();
+      } catch(deactErr) {
+        console.error('[RS] deactivateRedScreen threw:', deactErr);
+      }
       try {
         await UI.showRedSpinEndCelebration(bonusTotal, spinNum);
       } catch(celebErr) {
         console.error('[RS] showRedSpinEndCelebration threw:', celebErr && celebErr.message ? celebErr.message : celebErr);
         console.error('[RS] Stack:', celebErr && celebErr.stack ? celebErr.stack : '');
-      }
-      try {
-        await UI.deactivateRedScreen();
-      } catch(deactErr) {
-        console.error('[RS] deactivateRedScreen threw:', deactErr);
       }
     }
 
@@ -831,6 +910,11 @@ var Bonuses = {
       GameState.operator.rsSweepTier = -1;
     }
 
+    // v8.1.0: Multi-MINI celebration — 2+ MINIs in one RS session
+    if (_rsMiniCount >= 2 && typeof UI !== 'undefined' && UI.showMultiMiniCelebration) {
+      await UI.showMultiMiniCelebration(_rsMiniCount);
+    }
+
     GameState.activeBonus = null;
     saveState();
 
@@ -840,472 +924,29 @@ var Bonuses = {
   },
 
 
-  // ── HOLD & SPIN OUTCOME GENERATOR ─────────────────────────────────────
-  // Generates all coin positions and values in one RNG pass before any animation.
-  // Returns { sequence, coinMap, isBlackout, totalCoins }
-  _generateFullHoldSpinOutcome(betPerLine, linesActive, triggerGrid, preCoinMap, guaranteedJackpot) {
-    if (guaranteedJackpot === undefined) guaranteedJackpot = null;
-    var GRID_SIZE    = 15;
-    var landedSet    = new Set();
-    var coinMap      = {};
-    var sequence     = [];
-
-    // Lock trigger coins — use pre-assigned values if provided (pre-generated at spin time)
-    var initialCoins = [];
-    if (triggerGrid) {
-      for (var col = 0; col < 5; col++) {
-        for (var row = 0; row < 3; row++) {
-          var sym = (triggerGrid[col] && triggerGrid[col][row]);
-          if (sym === BONUS_ID) {
-            var pos  = col * 3 + row;
-            // Use pre-assigned coin if available — ensures value matches what was shown on reel
-            var coin = (preCoinMap && preCoinMap[pos]) ? preCoinMap[pos] : this._generateCoin(betPerLine, linesActive);
-            landedSet.add(pos);
-            coinMap[pos] = coin;
-            sequence.push({ pos: pos, coin: coin, respinRound: 0 });
-            initialCoins.push({ pos: pos, coin: coin });
-          }
-        }
-      }
-    }
-
-    // eventTimeline — ordered visual steps for the animation loop.
-    // Each entry is one of:
-    //   { type:'initial', events:[...] }  — trigger coins, no spinning animation
-    //   { type:'land',    events:[...] }  — respin where ≥1 coin landed (counter resets to 3)
-    //   { type:'empty' }                  — respin where nothing landed (counter ticks down)
-    var eventTimeline = [];
-    if (initialCoins.length > 0) {
-      eventTimeline.push({ type: 'initial', events: initialCoins });
-    }
-
-    // Simulate respin rounds
-    var respinRound = 1;
-    var maxRounds   = 30; // safety valve
-
-    while (respinRound <= maxRounds) {
-      var newLandings = 0;
-      var emptyPositions = [];
-      for (var i = 0; i < GRID_SIZE; i++) {
-        if (!landedSet.has(i)) emptyPositions.push(i);
-      }
-      if (emptyPositions.length === 0) break; // blackout
-
-      // Each empty position has LAND_PROBABILITY chance of landing a coin
-      var roundCoins = [];
-      for (var ei = 0; ei < emptyPositions.length; ei++) {
-        var epos = emptyPositions[ei];
-        if (rng.next() < HOLD_SPIN_LAND_PROBABILITY) {
-          // Pass isNearMiss so counter=1 landings get a value boost
-          var ecoin = this._generateCoin(betPerLine, linesActive, respinRound >= 3);
-          landedSet.add(epos);
-          coinMap[epos] = ecoin;
-          sequence.push({ pos: epos, coin: ecoin, respinRound: respinRound });
-          roundCoins.push({ pos: epos, coin: ecoin });
-          newLandings++;
-        }
-      }
-
-      if (newLandings === 0) {
-        eventTimeline.push({ type: 'empty' }); // counter ticks down
-        respinRound++; // No new coins — one fewer respin
-        if (respinRound > 3) break; // 3 respins exhausted
-      } else {
-        eventTimeline.push({ type: 'land', events: roundCoins }); // counter resets to 3
-        respinRound = 1; // Reset respin counter on any new landing
-      }
-    }
-
-    var isBlackout = (landedSet.size === GRID_SIZE);
-
-    // ── OPTION X: Guaranteed jackpot coin injection ──────────────────────
-    // If a jackpot was won at entry but didn't land naturally, inject it now.
-    // Replaces a randomly chosen cash coin so the jackpot coin appears on the board.
-    if (guaranteedJackpot) {
-      var alreadyHasJp = false;
-      var posKeys = Object.keys(coinMap);
-      for (var gji = 0; gji < posKeys.length; gji++) {
-        var gpc = coinMap[posKeys[gji]];
-        if (gpc.isJackpotOrb && gpc.jackpotLevel === guaranteedJackpot) { alreadyHasJp = true; break; }
-      }
-      if (!alreadyHasJp && posKeys.length > 0) {
-        // Prefer to replace a cash coin (non-jackpot)
-        var cashKeys = posKeys.filter(function(p) { return !coinMap[p].isJackpotOrb; });
-        var replaceKey = cashKeys.length > 0
-          ? cashKeys[Math.floor(rng.next() * cashKeys.length)]
-          : posKeys[Math.floor(rng.next() * posKeys.length)];
-        var jpVal = (GameState.jackpots[guaranteedJackpot] && GameState.jackpots[guaranteedJackpot].current) || 0;
-        var jpCoin = { type:'jackpot', isJackpotOrb:true, jackpotLevel:guaranteedJackpot, value:jpVal };
-        coinMap[replaceKey] = jpCoin;
-        // Sync the sequence entry for this position
-        for (var seqi = 0; seqi < sequence.length; seqi++) {
-          if (String(sequence[seqi].pos) === String(replaceKey)) { sequence[seqi].coin = jpCoin; break; }
-        }
-        logEvent('HS_JACKPOT_COIN_INJECTED', { tier:guaranteedJackpot, pos:replaceKey, value:jpVal });
-      }
-    }
-
-    return {
-      sequence:      sequence,
-      coinMap:       coinMap,
-      isBlackout:    isBlackout,
-      totalCoins:    landedSet.size,
-      eventTimeline: eventTimeline,
-    };
-  },
-
-  // ── COIN VALUE GENERATOR ────────────────────────────────────────────────
-  // Returns a coin object: { type, value, isJackpotOrb, jackpotLevel }
-  // ── PUBLIC: Pre-generate trigger coin values at spin time ────────────
-  // Called from game.js immediately after detecting 6+ gold coins.
-  // Uses the real H&S RNG so values are deterministic and match what H&S will show.
-  // Returns { coinMap: {pos:coin}, orderedCoins: [{pos,coin}] }
-  pregenerateTriggerCoins(grid, betPerLine, linesActive) {
-    var coinMap      = {};
-    var orderedCoins = [];
-    for (var col = 0; col < 5; col++) {
-      for (var row = 0; row < 3; row++) {
-        var sym = grid[col] && grid[col][row];
-        if (sym === BONUS_ID) {
-          var pos  = col * 3 + row;
-          var coin = this._generateCoin(betPerLine, linesActive);
-          coinMap[pos]  = coin;
-          orderedCoins.push({ pos: pos, coin: coin });
-        }
-      }
-    }
-    return { coinMap: coinMap, orderedCoins: orderedCoins };
-  },
-
-  // Coin cap by total bet — owner confirmed 2026-05-18:
-  // Under $1 = $3 cap, $1-$5 = $25 cap, over $5 = no cap
-  _coinCapForBet(totalBet) {
-    // Per-bet coin value cap — scales with denomination so small-bet players
-    // don't get oversized wins and high-bet players get proportional rewards.
-    // Updated v6l93 — 7 tiers covering all supported bets ($0.20–$2,000/spin).
-    // RULE: Always update this table when adding new denominations.
-    // NOTE: $10 and $20 denominations permanently removed v6l94. Max denom is $5.
-    if (totalBet <   1.00) return   3;   // < $1 bet   → max $3/coin
-    if (totalBet <   5.00) return  15;   // $1–$4.99   → max $15/coin
-    if (totalBet <  10.00) return  30;   // $5–$9.99   → max $30/coin
-    if (totalBet <  25.00) return  75;   // $10–$24.99 → max $75/coin
-    if (totalBet < 100.00) return 200;   // $25–$99.99 → max $200/coin
-    if (totalBet < 500.00) return 750;   // $100–$499  → max $750/coin
-    return 2500;                          // $500+       → max $2,500/coin
-  },
-
-  _generateCoin(betPerLine, linesActive, isNearMiss) {
-    if (isNearMiss === undefined) isNearMiss = false;
-    var totalBet   = betPerLine * linesActive;
-    var cap        = this._coinCapForBet(totalBet);
-    var roll       = rng.next();
-    var cumulative = 0;
-
-    // Check jackpot tiers first
-    for (var ji = 0; ji < HOLD_SPIN_JACKPOT_TIERS.length; ji++) {
-      var jt = HOLD_SPIN_JACKPOT_TIERS[ji];
-      cumulative += jt.weight;
-      if (roll < cumulative) {
-        var jpSeeds = getJackpotSeedsForDenom(GameState.lastDenom || DEFAULT_DENOM);
-        var jpValue = jpSeeds ? (jpSeeds[jt.level] || JACKPOT_CONFIG[jt.level].seed) : JACKPOT_CONFIG[jt.level].seed;
-        return {
-          type:         'jackpot',
-          value:        jpValue,
-          isJackpotOrb: true,
-          jackpotLevel: jt.level,
-        };
-      }
-    }
-
-    // Cash tiers — reset cumulative so JP and cash tiers are evaluated independently
-    // against the same roll value. Without reset, tiers whose threshold exceeds 1.0 are unreachable.
-    cumulative = 0;
-    var boost = (isNearMiss && typeof HOLD_SPIN_NEAR_MISS_BOOST !== 'undefined') ? HOLD_SPIN_NEAR_MISS_BOOST : 1;
-    for (var ci = 0; ci < HOLD_SPIN_CASH_TIERS.length; ci++) {
-      var ct = HOLD_SPIN_CASH_TIERS[ci];
-      cumulative += ct.weight;
-      if (roll < cumulative) {
-        var frac  = ct.minFrac + rng.next() * (ct.maxFrac - ct.minFrac);
-        var value = Math.round(totalBet * frac * boost);
-        value     = Math.max(value, 1);                        // minimum $1
-        value     = Math.min(value, isFinite(cap) ? cap : value); // apply cap
-        return {
-          type:         'cash',
-          value:        value,
-          isJackpotOrb: false,
-          nearMissSave: isNearMiss || false,
-        };
-      }
-    }
-
-    // Fallback — minimum $1
-    return { type: 'cash', value: 1, isJackpotOrb: false };
-  },
-
-    async runHoldSpin(betPerLine, linesActive, triggerStops, triggerGrid, callerContext) {
+  // ── PICK & CHOOSE BONUS ──────────────────────────────────────────────────────
+  runPickChoose: async function(betPerLine, linesActive, callerContext) { // v8.1.7: async fn expression — was ES6 async method shorthand (BUG-V3)
     if (callerContext === undefined) callerContext = {};
-    GameState.activeBonus = 'HOLD_SPIN';
-    var events = [];
-    // Jackpots fully eligible (unified system v6l96 — noJackpots suppression removed).
-
-    // ── UNIFIED JACKPOT CHECK AT ENTRY ────────────────────────────────
-    // Option X: if jackpot won, a coin of that type is guaranteed to appear on the board.
-    // noJackpots flag removed — H&S triggered from inside RS is now fully eligible.
-    var _hsEntryJackpot = _checkUnifiedJackpot();
-
-    // Pre-assigned coin map — generated at spin time and shown on the base reels
-    var preCoinMap = callerContext.triggerCoinMap || null;
-
-    // ── STEP 1: Predetermined RNG pass — all outcomes decided NOW ───────
-    // Pass _hsEntryJackpot so the outcome generator guarantees that coin lands.
-    var outcome = this._generateFullHoldSpinOutcome(betPerLine, linesActive, triggerGrid, preCoinMap, _hsEntryJackpot);
-    var sequence      = outcome.sequence;
-    var coinMap       = outcome.coinMap;
-    var isBlackout    = outcome.isBlackout;
-    var eventTimeline = outcome.eventTimeline;
-
-    logEvent('HOLD_SPIN_PREGEN', {
-      bonusType: 'HOLD_SPIN',
-      totalCoins: outcome.totalCoins,
-      isBlackout,
-      sequence: sequence.map(function(s) {
-        var c = s.coin;
-        var label = c.type === 'jackpot' ? ('jackpot:' + c.jackpotLevel) : c.type;
-        return 'pos' + s.pos + ':' + label + ':$' + (c.value != null ? c.value.toFixed(2) : '0');
-      }),
-    });
-
-    // ── STEP 2: Build displayBoard — trigger coins PRE-POPULATED ────────
-    // Trigger coins are already visible on the base game reels with their values.
-    // They appear locked on the H&S board the moment it opens — no landing animation.
-    var displayBoard = new Array(15).fill(null);
-    var triggerCoinsPreloaded = false;
-    if (eventTimeline.length > 0 && eventTimeline[0].type === 'initial') {
-      eventTimeline[0].events.forEach(function(ev) {
-        displayBoard[ev.pos] = ev.coin;
-      });
-      triggerCoinsPreloaded = true;
+    // FIX-D (v8.1.10): ES5 shallowCopy helper — replaces Object.assign({}, src) which is ES6
+    // and throws TypeError on JoiPlay/older Android WebView.
+    function _shallowCopy(src) {
+      var out = {};
+      for (var _k in src) { if (Object.prototype.hasOwnProperty.call(src, _k)) out[_k] = src[_k]; }
+      return out;
     }
-
-    if (typeof UI !== 'undefined') await UI.showHoldSpinBoard(displayBoard, 3);
-    if (typeof Audio !== 'undefined') Audio.startHoldSpinMusic();
-    logEvent('HOLD_SPIN_ENTRY', { bonusType:'HOLD_SPIN', respins:3 });
-
-    // ── STEP 3: Play out predetermined sequence visually ────────────────
-    var totalWon       = 0;
-    var grandWon       = false;
-    var respinDisplay  = 3;
-    // Trigger coins are pre-placed — count them toward totalCoinsLanded for 6th-coin slam tracking
-    var totalCoinsLanded = triggerCoinsPreloaded ? eventTimeline[0].events.length : 0;
-
-    // Accumulate jackpot levels that land — ALL pay out at bonus end
-    // MUST be declared before first use (trigger-coin accounting block below)
-    var jackpotsAccumulated = {};
-
-    // Account for trigger coin values immediately (they're already on board)
-    if (triggerCoinsPreloaded) {
-      eventTimeline[0].events.forEach(function(ev) {
-        if (ev.coin.isJackpotOrb) {
-          jackpotsAccumulated[ev.coin.jackpotLevel] = true;
-        } else {
-          totalWon += ev.coin.value;
-        }
-      });
-    }
-
-    // Helper: land a single coin and handle jackpot/cash accounting
-    var landCoin = async function(pos, coin, stepRound) {
-      totalCoinsLanded++;
-      displayBoard[pos] = coin;
-
-      // Compute running cash total AFTER this coin lands (for display update in animateCoinLand)
-      var cashAfter = totalWon + ((!coin.isJackpotOrb && coin.value != null) ? coin.value : 0);
-      if (typeof UI !== 'undefined') await UI.animateCoinLand(pos, coin, false, totalCoinsLanded, cashAfter);
-
-      if (coin.isJackpotOrb) {
-        var key = coin.jackpotLevel;
-        jackpotsAccumulated[key] = true;
-        displayBoard[pos] = { type:'jackpot', jackpotLevel:key, value:coin.value, isJackpotOrb:true };
-        if (typeof Audio !== 'undefined') Audio.play('jackpot_' + key.toLowerCase());
-        if (typeof UI !== 'undefined' && UI.flashJackpotCoin) await UI.flashJackpotCoin(pos, key);
-      } else {
-        totalWon += coin.value;
-      }
-
-      events.push(logEvent('HOLD_SPIN_LAND', {
-        bonusType:'HOLD_SPIN', position:pos, coin,
-        boardState: displayBoard.map(function(c) { return c ? (c.type + ':$' + (c.value != null ? c.value.toFixed(2) : '0')) : null; }),
-        respinRound: stepRound,
-      }));
-    };
-
-    // Drive animation from eventTimeline — skip 'initial' (already shown)
-    var stepIndex   = 0;
-    var respinCount = 0; // counts total respins for audio escalation
-
-    for (var eti = 0; eti < eventTimeline.length; eti++) {
-      var step = eventTimeline[eti];
-
-      if (step.type === 'initial') {
-        if (typeof UI !== 'undefined') await UI.updateRespinCounter(respinDisplay);
-
-      } else if (step.type === 'empty') {
-        respinCount++;
-        var emptyCells = displayBoard.filter(function(c) { return c === null; }).length;
-        var isLastThree = (emptyCells <= 3); // only 3 cells left — dramatic red glow
-
-        // Brief pause with conveyor STOPPED — cells dark between respins
-        await this._delay(320);
-
-        // Pulse locked coins, then start conveyor
-        if (typeof UI !== 'undefined') {
-          // v7.0.5: pass entryJackpot so belt shows awarded tier 3×
-          UI.startHoldSpinning(displayBoard, respinDisplay, emptyCells, isLastThree, _hsEntryJackpot);
-        }
-
-        // Per-respin escalating audio
-        if (typeof Audio !== 'undefined') Audio.holdSpinRespin(respinCount, respinDisplay);
-
-        await this._delay(respinDisplay === 1 ? 2200 : 1600);
-
-        // v7.0.5: decelerate (500ms ease-out) before coin drop — replaces instant clear
-        if (typeof UI !== 'undefined' && UI.decelerateHoldSpinning) {
-          await new Promise(function(res) { UI.decelerateHoldSpinning(res); });
-        } else if (typeof UI !== 'undefined') {
-          UI.clearHoldSpinning();
-        }
-        await this._delay(80);
-
-        respinDisplay = Math.max(0, respinDisplay - 1);
-        if (typeof UI !== 'undefined') await UI.updateRespinCounter(respinDisplay);
-
-        // Counter exhausted with nothing landing — respin cycle ends
-        if (respinDisplay === 0 && typeof UI !== 'undefined') {
-          await UI.updateRespinCounter(0);
-        }
-
-      } else if (step.type === 'land') {
-        respinCount++;
-        var emptyCells = displayBoard.filter(function(c) { return c === null; }).length;
-        var isLastThree = (emptyCells <= 3);
-
-        // Brief pause with conveyor STOPPED before each respin
-        await this._delay(320);
-
-        // Pulse locked coins + start conveyor
-        if (typeof UI !== 'undefined') {
-          // v7.0.5: pass entryJackpot so belt shows awarded tier 3×
-          UI.startHoldSpinning(displayBoard, respinDisplay, emptyCells, isLastThree, _hsEntryJackpot);
-        }
-
-        if (typeof Audio !== 'undefined') Audio.holdSpinRespin(respinCount, respinDisplay);
-
-        await this._delay(respinDisplay === 1 ? 1800 : 1200);
-
-        // v7.0.5: decelerate before coins land
-        if (typeof UI !== 'undefined' && UI.decelerateHoldSpinning) {
-          await new Promise(function(res) { UI.decelerateHoldSpinning(res); });
-        } else if (typeof UI !== 'undefined') {
-          UI.clearHoldSpinning();
-        }
-        await this._delay(60);
-
-        for (var evi = 0; evi < step.events.length; evi++) {
-          await landCoin(step.events[evi].pos, step.events[evi].coin, stepIndex);
-        }
-        respinDisplay = 3;
-        if (typeof UI !== 'undefined') await UI.updateRespinCounter(respinDisplay);
-      }
-
-      stepIndex++;
-    }
-
-    // ── STEP 4: Pay out ALL accumulated jackpots at bonus end ────────────
-    // All landed jackpot levels pay their denom-scaled seed value.
-    // Paid in order MINI→MINOR→MAJOR→GRAND for escalating celebration.
-    // Jackpots fully eligible — unified system. noJackpots suppression fully removed v6l114.
-    var jackpotOrder = ['MINI','MINOR','MAJOR','GRAND'];
-    for (var jpi = 0; jpi < jackpotOrder.length; jpi++) {
-      var jpLevel = jackpotOrder[jpi];
-      if (!jackpotsAccumulated[jpLevel]) continue;
-
-      var jpAmt = awardJackpot(jpLevel);
-      totalWon += jpAmt;
-      if (jpLevel === 'GRAND') grandWon = true;
-
-      logEvent('JACKPOT_HIT', {
-        bonusType:'JACKPOT', jackpotType:jpLevel,
-        trigger:'HOLD_SPIN_END', amount:jpAmt,
-        balanceAfter:GameState.balance
-      });
-
-      if (typeof Audio !== 'undefined') Audio.play('jackpot_' + jpLevel.toLowerCase());
-      if (typeof UI !== 'undefined') await UI.showJackpotCelebration(jpLevel, jpAmt, 'HOLD_SPIN');
-    }
-
-    // ── STEP 5: Blackout bonus — Grand Jackpot again ─────────────────────
-    if (isBlackout) {
-      var blackoutAmt = awardJackpot('GRAND');
-      totalWon += blackoutAmt;
-      logEvent('JACKPOT_HIT', {
-        bonusType:'JACKPOT', jackpotType:'GRAND',
-        trigger:'HOLD_SPIN_BLACKOUT', amount:blackoutAmt,
-        note: grandWon ? 'Second Grand (blackout)' : 'Blackout Grand',
-        balanceAfter:GameState.balance,
-      });
-      if (typeof Audio !== 'undefined') Audio.play('jackpot_grand');
-      if (typeof UI !== 'undefined') await UI.showBlackoutCelebration(blackoutAmt, grandWon);
-    }
-
-    // ── STEP 6: End bonus ─────────────────────────────────────────────────
-    if (typeof Audio !== 'undefined') { Audio.stopHoldSpinMusic(); Audio.play('hold_spin_end'); }
-    GameState.balance += totalWon;
-    saveState();
-
-    // Restore reels to triggering position after H&S exits (BIG MUNNY design rule).
-    // Applies to: base game (triggerStops provided), Red Spin, BONUS letters.
-    // Suppressed for: Pick & Choose (fromPickChoose), nested Red Spin / BONUS orb H&S (noRestoreReels),
-    //                 and any context where triggerStops/triggerGrid were not captured.
-    var _noRestore    = callerContext.fromPickChoose === true || callerContext.noRestoreReels === true;
-    var _restoreReels = !_noRestore && (triggerStops != null) && (triggerGrid != null);
-
-    if (typeof UI !== 'undefined') {
-      await UI.endHoldSpin(displayBoard, totalWon, isBlackout, _restoreReels ? triggerStops : null, _restoreReels ? triggerGrid : null);
-      UI.updateBalance(GameState.balance);
-    }
-
-    logEvent('HOLD_SPIN_END', {
-      bonusType:'HOLD_SPIN', finalBoard:displayBoard,
-      isBlackout, totalWon, totalCoins:outcome.totalCoins,
-      jackpotsAwarded: Object.keys(jackpotsAccumulated),
-      balanceAfter:GameState.balance,
-    });
-    GameState.activeBonus = null;
-    return { totalWon, events, outcome:{ isBlackout, totalWon, board:displayBoard, sequence } };
-  },
-
-// ═══════════════════════════════════════════════════════════════════════
-// BONUS #3 — PICK & CHOOSE
-// ═══════════════════════════════════════════════════════════════════════
-// PICK & CHOOSE — match-3 tile reveal bonus
-// Player taps tiles freely until 3 matching tiles found. Always 3 picks to win.
-// Prize predetermined by RNG before grid shows. No extra picks mechanic.
-// ═══════════════════════════════════════════════════════════════════════
-
-  async runPickChoose(betPerLine, linesActive, callerContext) {
-    if (callerContext === undefined) callerContext = {};
-    if (callerContext.from === 'HOLD_SPIN') return { totalWon:0, events:[], outcome:null };
     GameState.activeBonus = 'PICK_CHOOSE';
     var events = [], totalBet = betPerLine * linesActive, minAward = totalBet;
     // Jackpots via match-3 tiles only (unified system v6l96).
     var tiles = this._generatePickTiles(totalBet, minAward);
-    var revealed = new Array(PICK_CHOOSE_GRID_SIZE).fill(false);
+    // FIX-C (v8.1.10): replaced new Array(n).fill(false) — Array.prototype.fill() is ES6, throws on JoiPlay/older WebView
+    var revealed = [];
+    for (var _ri = 0; _ri < PICK_CHOOSE_GRID_SIZE; _ri++) { revealed.push(false); }
     var matchCounts = {};
-    var won=false, totalWon=0, awardHoldSpin=false, awardRedSpin=false, prize=null;
+    var won=false, totalWon=0, awardRedSpin=false, prize=null;
 
     if (typeof UI !== 'undefined') await UI.showPickChooseGrid(PICK_CHOOSE_GRID_SIZE);
     if (typeof Audio !== 'undefined') Audio.startPickMusic();
-    logEvent('PICK_CHOOSE_ENTRY', { bonusType:'PICK_CHOOSE', gridSize:PICK_CHOOSE_GRID_SIZE, totalBet });
+    logEvent('PICK_CHOOSE_ENTRY', { bonusType:'PICK_CHOOSE', gridSize:PICK_CHOOSE_GRID_SIZE, totalBet: totalBet });
 
     while (!won) {
       var unrevealedCount = 0;
@@ -1316,14 +957,14 @@ var Bonuses = {
       revealed[tileIndex] = true;
 
       // Per-tile JP check removed v6l96 — replaced by _pcEntryJackpot at entry.
-      var finalTile = Object.assign({}, tiles[tileIndex]);
+      var finalTile = _shallowCopy(tiles[tileIndex]); // FIX-D
 
       if (typeof UI !== 'undefined') await UI.revealPickTile(tileIndex, finalTile, false, false);
       if (typeof Audio !== 'undefined') Audio.play('pick_reveal');
 
       var key = finalTile.type;
       matchCounts[key] = (matchCounts[key] || 0) + 1;
-      var matchCountsCopy = Object.assign({}, matchCounts);
+      var matchCountsCopy = _shallowCopy(matchCounts); // FIX-D
       var evt = logEvent('PICK_REVEAL', { bonusType:'PICK_CHOOSE', tileIndex: tileIndex, tile:finalTile, matchCounts:matchCountsCopy, isMatch: matchCounts[key] >= 3 });
       events.push(evt);
       if (typeof UI !== 'undefined') UI.updatePickMatches(matchCounts);
@@ -1338,7 +979,7 @@ var Bonuses = {
         prize = finalTile;
         if (typeof Audio !== 'undefined') Audio.play('pick_match');
 
-        if (['mini','minor','major','grand'].includes(key)) {
+        if (['mini','minor','major','grand'].indexOf(key) >= 0) { // FIX-B (v8.1.10): .includes()→.indexOf() — ES5 compat (Samsung Browser/JoiPlay)
           totalWon = awardJackpot(key.toUpperCase());
           if (typeof Audio !== 'undefined') Audio.play('jackpot_' + key);
           if (typeof UI !== 'undefined') await UI.showJackpotCelebration(key.toUpperCase(), totalWon, 'PICK_CHOOSE');
@@ -1347,13 +988,13 @@ var Bonuses = {
           GameState.balance += totalWon;
         } else if (key === 'red_spin') {
           awardRedSpin = true;
-        } else if (key === 'hold_spin') {
-          awardHoldSpin = true;
+        } else if (key === 'bonus_cash') {
+          // v8.0: bonus_cash — value awarded directly (awarded upstream in runBonusFeature)
         }
 
         saveState();
         if (typeof UI !== 'undefined') {
-          await UI.showPickChooseWin(tileIndex, prize, totalWon, awardHoldSpin, awardRedSpin, matchCounts);
+          await UI.showPickChooseWin(tileIndex, prize, totalWon, awardRedSpin, matchCounts);
         }
         break;
       }
@@ -1361,18 +1002,18 @@ var Bonuses = {
 
     if (typeof Audio !== 'undefined') Audio.stopPickMusic();
     if (typeof UI !== 'undefined') {
-      await UI.endPickChoose(prize, totalWon, awardHoldSpin, awardRedSpin);
+      await UI.endPickChoose(prize, totalWon, awardRedSpin);
       UI.updateBalance(GameState.balance);
       // Restore reels to P&C trigger position (shows 5-oak Lipstick briefly before returning)
       if (callerContext.triggerStops && callerContext.triggerGrid) {
         await UI.animateReelsStop(callerContext.triggerStops, callerContext.triggerGrid, false, false);
       }
     }
-    logEvent('PICK_CHOOSE_END', { bonusType:'PICK_CHOOSE', prize, totalWon, awardHoldSpin, awardRedSpin, matchCounts, balanceAfter:GameState.balance });
+    logEvent('PICK_CHOOSE_END', { bonusType:'PICK_CHOOSE', prize: prize, totalWon: totalWon, awardRedSpin: awardRedSpin, matchCounts: matchCounts, balanceAfter:GameState.balance });
     GameState.activeBonus = null;
     // Jackpots in P&C are match-3 tiles only — no separate entry award.
     // When the player matches 3 jackpot tiles, awardJackpot fires in the match block above.
-    return { totalWon, awardHoldSpin, awardRedSpin, events, outcome:{prize, totalWon, matchCounts} };
+    return { totalWon: totalWon, awardRedSpin: awardRedSpin, events: events, outcome: { prize: prize, totalWon: totalWon, matchCounts: matchCounts } };
   },
 
   // ── FULLY PREDETERMINED PICK BOARD ─────────────────────────────────
@@ -1382,23 +1023,27 @@ var Bonuses = {
   // 3 tiles of that type exist (the winning tiles), rest are "decoys"
   // of other types (also predetermined). Player ALWAYS finds 3 of the
   // winning type if they keep tapping — guaranteed.
-  _generatePickTiles(totalBet, minAward) {
+  _generatePickTiles: function(totalBet, minAward) { // v8.1.7: ES5 — was ES6 method shorthand (BUG-V3)
     // v6l100 calibration — owner approved 2026-05-21.
     // Mirrors PICK_CHOOSE_PRIZES in paytable.js — must stay in sync.
     var PRIZE_WEIGHTS = [
-      { type:'cash_a',    weight:0.48 },  // 48% cash (was 40%)
-      { type:'cash_b',    weight:0.22 },  // 22% cash (was 20%)
-      { type:'hold_spin', weight:0.08 },  // 8%  H&S  (was 14%)
-      { type:'red_spin',  weight:0.06 },  // 6%  RS   (was 12%)
-      { type:'mini',      weight:0.07 },  // 7%  MINI
-      { type:'minor',     weight:0.05 },  // 5%  MINOR (was 4%)
-      { type:'major',     weight:0.03 },  // 3%  MAJOR (was 2%)
-      { type:'grand',     weight:0.01 },  // 1%  GRAND
+      // v8.1.38 MC calibration — owner approved 2026-05-29. Mirrors PICK_CHOOSE_PRIZES in paytable.js.
+      // Weights sum to exactly 1.0. JP weights calibrated to casino standard frequencies.
+      { type:'cash_a',     weight:0.5625  }, // 56.25% cash
+      { type:'cash_b',     weight:0.2200  }, // 22.00% cash
+      { type:'bonus_cash', weight:0.04085 }, // 4.085% Bonus Cash
+      { type:'red_spin',   weight:0.0600  }, // 6.00%  Red Spin
+      { type:'mini',       weight:0.1000  }, // 10.00% MINI JP
+      { type:'minor',      weight:0.0150  }, // 1.50%  MINOR JP
+      { type:'major',      weight:0.0015  }, // 0.15%  MAJOR JP
+      { type:'grand',      weight:0.00015 }, // 0.015% GRAND JP
+      // SUM = 1.00000
     ];
     var CASH_TIERS = [
-      { minMult:5,  maxMult:25 },
-      { minMult:25, maxMult:75 },
-      { minMult:75, maxMult:150 },
+      // v8.1.38: recalibrated to $1.00/spin (1c/20L). Old: $5-$25/$25-$75/$75-$150 (5c/$10/spin).
+      { minMult:0.25, maxMult:0.75 },  // small  ($0.25-$0.75)
+      { minMult:0.75, maxMult:2.00 },  // medium ($0.75-$2.00)
+      { minMult:2.00, maxMult:5.00 },  // large  ($2.00-$5.00)
     ];
 
     // 1. Decide the winning prize type and value
@@ -1415,23 +1060,29 @@ var Bonuses = {
     var winValue = 0;
     if (winTypeName === 'cash') {
       var tier = CASH_TIERS[rng.nextInt(0, 2)];
-      winValue = Math.max(Math.round(totalBet * rng.nextInt(tier.minMult, tier.maxMult)), Math.round(minAward));
+      // FIX-A1 v8.1.45: rng.nextInt() uses Math.floor — passing float min/max produced only 2 discrete
+      // outputs (e.g. nextInt(0.25,0.75) → only 0.25 or 1.25). Use rng.next() interpolation for a
+      // true continuous range across the full tier band.
+      var tierMult = tier.minMult + rng.next() * (tier.maxMult - tier.minMult);
+      winValue = Math.max(Math.round(totalBet * tierMult * 100) / 100, Math.round(minAward * 100) / 100);
     }
     var winPrize = { type: winTypeName, value: winValue };
 
     // 2. Build 15-tile board: exactly 3 winning tiles + 12 decoy tiles
     // Decoy types are all prize entries whose internal type does NOT map to the winning type.
     // Using the internal names (cash_a / cash_b) means both cash buckets are excluded when cash wins.
+    // v8.1.40 BUG-PC-3: deduplicate after mapping — cash_a and cash_b both map to 'cash',
+    // previously appearing twice in decoyTypes making cash 2x as likely in decoy selection.
     var decoyTypes = [];
     for (var di = 0; di < PRIZE_WEIGHTS.length; di++) {
       var pw = PRIZE_WEIGHTS[di];
       var pwPublic = (pw.type === 'cash_a' || pw.type === 'cash_b') ? 'cash' : pw.type;
-      if (pwPublic !== winTypeName) decoyTypes.push(pwPublic);
+      if (pwPublic !== winTypeName && decoyTypes.indexOf(pwPublic) < 0) decoyTypes.push(pwPublic);
     }
 
     var tiles = [];
     // Add 3 guaranteed winning tiles
-    for (var wi = 0; wi < 3; wi++) tiles.push(Object.assign({}, winPrize));
+    for (var wi = 0; wi < 3; wi++) { tiles.push({ type: winPrize.type, value: winPrize.value }); } // FIX-D: was Object.assign({}, winPrize) — ES6
     // Add 12 decoy tiles — each decoy type capped at max 2 occurrences.
     // With 12 decoys across types (max 2 each), no decoy type can reach match-3
     // before the 3 guaranteed winning tiles are found — win is always achievable.
@@ -1446,7 +1097,9 @@ var Bonuses = {
       var dv = 0;
       if (dt === 'cash') {
         var dTier = CASH_TIERS[rng.nextInt(0, CASH_TIERS.length - 1)];
-        dv = Math.max(Math.round(totalBet * rng.nextInt(dTier.minMult, dTier.maxMult)), minAward);
+        // FIX-A1 v8.1.45: same fix as winning cash — continuous range interpolation
+        var dTierMult = dTier.minMult + rng.next() * (dTier.maxMult - dTier.minMult);
+        dv = Math.max(Math.round(totalBet * dTierMult * 100) / 100, Math.round(minAward * 100) / 100);
       }
       tiles.push({ type: dt, value: dv });
     }
@@ -1465,17 +1118,17 @@ var Bonuses = {
   // Fully predetermined — RNG decides before player taps.
   // Prizes: Red Spin | Pick & Choose | Hold & Spin (no jackpots)
   // ═══════════════════════════════════════════════════════════════════
-  async runBonusFeature(betPerLine, linesActive, callerContext) {
+  runBonusFeature: async function(betPerLine, linesActive, callerContext) { // v8.1.7: async fn expression — was ES6 async method shorthand (BUG-V3)
     if (callerContext === undefined) callerContext = {};
     GameState.activeBonus = 'BONUS_FEATURE';
     var events = [];
     var totalBet = betPerLine * linesActive;
     // Jackpots fully eligible for all sub-bonuses triggered via BONUS orb.
     // noJackpots suppression removed v6l114 — owner confirmed 2026-05-21.
-    // Each sub-bonus (H&S, P&C, RS) runs its own _checkUnifiedJackpot() at entry.
+    // Each sub-bonus (P&C, RS) runs its own _checkUnifiedJackpot() at entry.
 
     // ── STEP 1: Predetermined RNG — decide prize before player picks ──
-    var prizes = ['red_spin', 'pick_choose', 'hold_spin'];
+    var prizes = ['red_spin', 'pick_choose', 'bonus_cash'];
     // Shuffle prizes so each orb position is random
     for (var bfi = prizes.length - 1; bfi > 0; bfi--) {
       var bfj = rng.nextInt(0, bfi);
@@ -1489,7 +1142,7 @@ var Bonuses = {
     // ── STEP 2: Show bonus orb selection screen ────────────────────────
     if (typeof UI !== 'undefined') await UI.showBonusOrbScreen(prizes, winPosition);
     if (typeof Audio !== 'undefined') Audio.startPickMusic();
-    logEvent('BONUS_FEATURE_ENTRY', { bonusType:'BONUS_FEATURE', betPerLine, linesActive, winPrize, prizes });
+    logEvent('BONUS_FEATURE_ENTRY', { bonusType:'BONUS_FEATURE', betPerLine: betPerLine, linesActive: linesActive, winPrize: winPrize, prizes: prizes });
 
     // ── STEP 3: Wait for player to tap an orb ─────────────────────────
     var chosenIdx = await this._waitForOrbTap();
@@ -1499,27 +1152,42 @@ var Bonuses = {
     // Owner confirmed v6l114 2026-05-21.
     winPrize    = prizes[chosenIdx];
     winPosition = chosenIdx;
-    if (typeof UI !== 'undefined') await UI.revealBonusOrbs(prizes, winPosition, chosenIdx);
+
+    // BUG-ORB1 FIX v8.1.51: Calculate cash amount BEFORE revealBonusOrbs so it can be
+    // passed into the UI for display on the orb and in the celebration.
+    // Previously calculated after the UI call — player won cash but never saw the amount.
+    var awardRedSpin = false, awardPickChoose = false;
+    var bonusCashWon = 0;
+    if (winPrize === 'bonus_cash') {
+      var totalBetOrb = betPerLine * linesActive;
+      var cashMult = 5 + Math.floor(rng.next() * 21); // 5–25x
+      bonusCashWon = Math.round(cashMult * totalBetOrb * 100) / 100;
+    }
+
+    if (typeof UI !== 'undefined') await UI.revealBonusOrbs(prizes, winPosition, chosenIdx, bonusCashWon);
     if (typeof Audio !== 'undefined') Audio.play('pick_match');
     await this._delay(1200);
 
     // ── STEP 4: Award the orb the player actually chose ───────────────
-    var awardHoldSpin = false, awardRedSpin = false, awardPickChoose = false;
-    if (winPrize === 'hold_spin')   awardHoldSpin  = true;
+    if (winPrize === 'bonus_cash') {
+      GameState.balance += bonusCashWon;
+      logEvent('BONUS_CASH_AWARD', { bonusType:'BONUS_FEATURE', amount:bonusCashWon, multiplier:cashMult });
+      if (typeof UI !== 'undefined') UI.updateBalance(GameState.balance);
+    }
     if (winPrize === 'red_spin')    awardRedSpin   = true;
     if (winPrize === 'pick_choose') awardPickChoose = true;
 
     if (typeof Audio !== 'undefined') Audio.stopPickMusic();
-    if (typeof UI !== 'undefined') await UI.endBonusOrbScreen(winPrize);
+    if (typeof UI !== 'undefined') await UI.endBonusOrbScreen(winPrize, bonusCashWon);
 
-    logEvent('BONUS_FEATURE_END', { bonusType:'BONUS_FEATURE', winPrize, chosenIdx, winPosition });
+    logEvent('BONUS_FEATURE_END', { bonusType:'BONUS_FEATURE', winPrize: winPrize, chosenIdx: chosenIdx, winPosition: winPosition });
     GameState.activeBonus = null;
 
-    return { totalWon:0, awardHoldSpin, awardRedSpin, awardPickChoose, events,
-             outcome:{ winPrize, chosenIdx, winPosition } };
+    return { totalWon: bonusCashWon, awardRedSpin: awardRedSpin, awardPickChoose: awardPickChoose, events: events,
+             outcome: { winPrize: winPrize, chosenIdx: chosenIdx, winPosition: winPosition } };
   },
 
-  _waitForOrbTap() {
+  _waitForOrbTap: function() { // v8.1.7: ES5 — was ES6 method shorthand (BUG-V3)
     return new Promise(function(resolve) {
       if (typeof UI !== 'undefined') {
         // Delay before wiring tap — prevents tap-through from bonus trigger gesture
@@ -1532,7 +1200,7 @@ var Bonuses = {
     });
   },
 
-  _waitForTileTap(revealed) {
+  _waitForTileTap: function(revealed) { // v8.1.7: ES5 — was ES6 method shorthand (BUG-V3)
     return new Promise(function(resolve) {
       if (typeof UI !== 'undefined') {
         UI.setPickTapCallback(function(index) { if (!revealed[index]) resolve(index); });
@@ -1545,5 +1213,5 @@ var Bonuses = {
   },
 
 
-  _delay(ms) { return new Promise(function(r) { setTimeout(r, ms); }); },
+  _delay: function(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }, // v8.1.7: ES5
 };

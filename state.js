@@ -9,6 +9,10 @@ var STATE_KEY   = 'turrelleSisters_v1';
 var HISTORY_KEY = 'turrelle_game_history';
 var HISTORY_MAX = 10000;
 
+// FIX-B5 v8.1.46: ES5 zero-pad helper — replaces String.prototype.padStart() (ES2017)
+// padStart() throws TypeError on older Android WebViews and JoiPlay.
+function _zeroPad(n, len) { var s = String(n); while (s.length < len) s = '0' + s; return s; }
+
 // ═══════════════════════════════════════════════════════════════════════
 // GAME STATE — single source of truth
 // ═══════════════════════════════════════════════════════════════════════
@@ -39,7 +43,6 @@ var GameState = {
     biggestWin:        0,
     biggestWinDetail:  null,
     redSpinCount:      0,
-    holdSpinCount:     0,
     pickChooseCount:   0,
     bonusFeatureCount: 0,
     jackpotWins:       { MINI:0, MINOR:0, MAJOR:0, GRAND:0 },
@@ -58,27 +61,29 @@ var GameState = {
     startingBalance:          DEFAULT_BALANCE,
     panelOpen:                false,
     comboArmed:               false,
-    comboBonus:               'hold_spin',
+    comboBonus:               'red_spin',
     comboJP:                  'MINI',
     // v7.0.2 — multi-bonus combo: object of booleans for each bonus type
-    comboModes: { hold_spin: false, red_spin: false, pick_choose: false, bonus_letters: false },
-    // v7.0.2 — multi-jackpot queue: array of tier strings e.g. ['MINI','MAJOR'] for H&S/P&C
+    comboModes: { red_spin: false, pick_choose: false, bonus_letters: false },
+    // v7.0.2 — multi-jackpot queue: array of tier strings e.g. ['MINI','MAJOR'] for P&C
     forceJackpotQueue:        [],
     // v7.0.2 — RS tier-to-jackpot map: { 0:'MINI', 1:'MINOR', 2:'MAJOR', 3:'GRAND' }
     // Each key is a tier index (0=T1...3=T4), value is the jackpot type or null for no force.
     forceRSTierMap:           {},
     // v7.0.2 — RS sweep mode: plays all winning combos within each tier for QA
     rsSweepMode:              false,
-    rsSweepTier:              -1,    // -1=ALL tiers, 0-3=specific tier index
+    rsSweepTier:              -1,
+    forceRSEntryTier:         -1,   // v8.1.25: -1=random, 0-3=force T1-T4
+    forceRSStepCount:         -1,   // v8.1.25: -1=random, 4/5/6=force step count
+    forceRSAdvance:           false, // v8.1.25: force next continuance-fail to advance tier    // -1=ALL tiers, 0-3=specific tier index
     forceFreeSpins:           false,
-    forceBonusGame:           false,
     forceBonusFeature:        false,
     forceRedSpin:             false,
     forceJackpot:             'none',
     forceJackpotContext:      'bonus',
     forceReelStops:           [null, null, null, null, null],
     disablePickChooseInRedSpin: true,
-    disableHoldSpinInRedSpin:   true,
+    _forcedSpin: false,  // v8.1.58: true during operator-forced spins — excluded from RTP stats
   },
 
   eventLog: {
@@ -105,7 +110,30 @@ function saveState() {
       lastCreditsPerLine: GameState.lastCreditsPerLine,
       jackpots:           GameState.jackpots,
       stats:              GameState.stats,
-      operator:           Object.assign({}, GameState.operator, { panelOpen: false }),
+      operator: (function() {
+        // BUG-ES6-1 FIX (v8.1.19): Object.assign() replaced — ES5 manual snapshot.
+        // saveState fires every spin; Object.assign on Samsung Browser <10 / JoiPlay crashes.
+        var op = GameState.operator;
+        return {
+          targetRTP: op.targetRTP, holdPercentage: op.holdPercentage,
+          jackpotContribution: op.jackpotContribution,
+          bonusFrequencyMultiplier: op.bonusFrequencyMultiplier,
+          redSpinContinuance: op.redSpinContinuance, redSpinFrequency: op.redSpinFrequency,
+          maxWinPerSpin: op.maxWinPerSpin, startingBalance: op.startingBalance,
+          panelOpen: false,  // always reset on save
+          comboArmed: op.comboArmed, comboBonus: op.comboBonus, comboJP: op.comboJP,
+          comboModes: { red_spin: op.comboModes.red_spin, pick_choose: op.comboModes.pick_choose, bonus_letters: op.comboModes.bonus_letters },
+          forceJackpotQueue: op.forceJackpotQueue.slice(),
+          forceRSTierMap: (function() { var m = {}; var keys = Object.keys(op.forceRSTierMap); for (var ki = 0; ki < keys.length; ki++) { m[keys[ki]] = op.forceRSTierMap[keys[ki]]; } return m; })(),
+          rsSweepMode: op.rsSweepMode, rsSweepTier: op.rsSweepTier,
+          forceRSEntryTier: op.forceRSEntryTier, forceRSStepCount: op.forceRSStepCount, forceRSAdvance: op.forceRSAdvance,
+          forceFreeSpins: op.forceFreeSpins, forceBonusFeature: op.forceBonusFeature,
+          forceRedSpin: op.forceRedSpin, forceJackpot: op.forceJackpot,
+          forceJackpotContext: op.forceJackpotContext,
+          forceReelStops: op.forceReelStops.slice(),
+          disablePickChooseInRedSpin: op.disablePickChooseInRedSpin,
+        };
+      })(),
       eventLog: {
         allEvents:   GameState.eventLog.allEvents,
         games:       GameState.eventLog.games,
@@ -129,6 +157,11 @@ function loadState() {
     if (saved.lastLines          !== undefined) GameState.lastLines          = saved.lastLines;
     if (saved.lastDenom          !== undefined) GameState.lastDenom          = saved.lastDenom;
     if (saved.lastCreditsPerLine !== undefined) GameState.lastCreditsPerLine = saved.lastCreditsPerLine;
+    // v8.1.58 FIX: always re-derive creditsPerLine from DENOM_CREDIT_LOCK to prevent stale 1cr/line bug.
+    // Old saved states may have creditsPerLine=1 from earlier builds.
+    if (GameState.lastDenom && typeof DENOM_CREDIT_LOCK !== 'undefined' && DENOM_CREDIT_LOCK[GameState.lastDenom]) {
+      GameState.lastCreditsPerLine = DENOM_CREDIT_LOCK[GameState.lastDenom];
+    }
 
     if (saved.jackpots) {
       Object.keys(GameState.jackpots).forEach(function(key) {
@@ -145,8 +178,18 @@ function loadState() {
       });
     }
 
-    if (saved.stats)    Object.assign(GameState.stats,    saved.stats);
-    if (saved.operator) Object.assign(GameState.operator, saved.operator);
+    // BUG-ES6-1 FIX (v8.1.19): Object.assign() replaced with ES5 _mergeKeys helper.
+    // Only copies keys that already exist in target — safe upgrade-compatible merge.
+    function _mergeKeys(target, src) {
+      var keys = Object.keys(src);
+      for (var ki = 0; ki < keys.length; ki++) {
+        if (Object.prototype.hasOwnProperty.call(target, keys[ki])) {
+          target[keys[ki]] = src[keys[ki]];
+        }
+      }
+    }
+    if (saved.stats)    _mergeKeys(GameState.stats,    saved.stats);
+    if (saved.operator) _mergeKeys(GameState.operator, saved.operator);
 
     if (saved.eventLog) {
       if (saved.eventLog.allEvents)   GameState.eventLog.allEvents   = saved.eventLog.allEvents;
@@ -188,7 +231,7 @@ function resetState(options) {
     GameState.stats = {
       totalWagered: 0, totalWon: 0, totalSpins: 0,
       biggestWin: 0, biggestWinDetail: null,
-      redSpinCount: 0, holdSpinCount: 0, pickChooseCount: 0, bonusFeatureCount: 0,
+      redSpinCount: 0, pickChooseCount: 0, bonusFeatureCount: 0,
       jackpotWins: { MINI:0, MINOR:0, MAJOR:0, GRAND:0 },
       sessionStart: Date.now(),
     };
@@ -262,7 +305,7 @@ function startGameRecord(bet) {
   var g = GameState.eventLog;
   g.gameCounter++;
   g.currentGame = {
-    gameId:        'game_' + String(g.gameCounter).padStart(4, '0'),
+    gameId:        'game_' + _zeroPad(g.gameCounter, 4),
     gameNumber:    g.gameCounter,
     timestamp:     Date.now(),
     timeFormatted: formatTimestamp(Date.now()),
@@ -286,7 +329,10 @@ function logEvent(type, data) {
     timeFormatted: formatTimestamp(now),
     gameId:        (g.currentGame && g.currentGame.gameId) ? g.currentGame.gameId : 'system',
   };
-  Object.assign(evt, data);
+  // BUG-ES6-2 FIX (v8.1.20): Object.assign(evt, data) replaced — last Object.assign in codebase.
+  // Fires on every spin-start, bonus trigger, jackpot, and game-event log call.
+  var _dataKeys = Object.keys(data);
+  for (var _di = 0; _di < _dataKeys.length; _di++) { evt[_dataKeys[_di]] = data[_dataKeys[_di]]; }
   g.allEvents.push(evt);
   if (g.allEvents.length > 500) g.allEvents.shift();
   return evt;
@@ -399,9 +445,13 @@ function exportHistoryJSON() {
 function recordSpin(totalBet, totalWon) {
   var s = GameState.stats;
   s.totalSpins++;
-  s.totalWagered += totalBet;
-  s.totalWon     += totalWon;
-  if (totalWon > s.biggestWin) s.biggestWin = totalWon;
+  // v8.1.58: operator-forced spins excluded from RTP metrics (Rule — op triggers are for testing only)
+  if (!GameState.operator._forcedSpin) {
+    s.totalWagered += totalBet;
+    s.totalWon     += totalWon;
+    if (totalWon > s.biggestWin) s.biggestWin = totalWon;
+  }
+  GameState.operator._forcedSpin = false; // always reset after each spin
   if (!s.sessionStart) s.sessionStart = Date.now();
 }
 
@@ -417,7 +467,7 @@ function getSessionDuration() {
   var h   = Math.floor(ms / 3600000);
   var m   = Math.floor((ms % 3600000) / 60000);
   var sec = Math.floor((ms % 60000) / 1000);
-  return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+  return _zeroPad(h, 2) + ':' + _zeroPad(m, 2) + ':' + _zeroPad(sec, 2);
 }
 
 // ═══════════════════════════════════════════════════════════════════════

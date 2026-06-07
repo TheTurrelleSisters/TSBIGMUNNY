@@ -5,8 +5,8 @@
  * Bump CACHE_NAME on every build that changes any cached file.
  */
 
-const CACHE_NAME  = 'turrelle-v7.0.6';
-const VER         = '?v=7.0.1'; // must always match CACHE_NAME suffix
+const CACHE_NAME  = 'turrelle-v8.1.58';
+const VER = '?v=8.1.58'; // must always match CACHE_NAME suffix
 const CACHE_FILES = [
   './', './index.html',
   './style.css' + VER,
@@ -24,7 +24,7 @@ const CACHE_FILES = [
   './assets/maxine.png',
   './assets/sisters.png',
   './assets/symbols/seven.svg',
-  './assets/symbols/lipstick.svg', './assets/symbols/gold_coin.svg',
+  './assets/symbols/lipstick.svg', './assets/symbols/dollar_bills.svg',
   './assets/symbols/jp_mini.svg', './assets/symbols/jp_minor.svg',
   './assets/symbols/jp_major.svg', './assets/symbols/jp_grand.svg',
   './assets/symbols/single_bar.svg', './assets/symbols/double_bar.svg',
@@ -38,8 +38,8 @@ const CACHE_FILES = [
   './assets/audio/theme_music.mp3',
   './assets/audio/red_spin_music.mp3',
   './assets/audio/pick_music.mp3',
-  './assets/audio/hold_spin_trigger.wav',
-  './assets/audio/hold_spin_end.mp3',
+
+
   './assets/audio/credits_addup.wav',
   './assets/audio/pick_reveal.wav',
   './assets/audio/splash_welcome.wav',

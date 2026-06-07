@@ -42,7 +42,8 @@ var CashOut = (function() {
 
   function formatTimestamp(ts) {
     var d = new Date(ts);
-    function pad(n) { return String(n).padStart(2,'0'); }
+    // FIX-B5b v8.1.47: padStart() is ES2017 — replaced with ES5 zero-pad helper
+    function pad(n) { var s = String(n); return s.length < 2 ? '0' + s : s; }
     return pad(d.getMonth()+1)+'/'+pad(d.getDate())+'/'+String(d.getFullYear()).slice(-2)+' '+pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
   }
 
@@ -327,12 +328,17 @@ var CashOut = (function() {
     // Clear ALL stale overlay/modal states from previous session
     var staleOverlays = [
       'voucher-modal', 'wallet-modal', 'jackpot-overlay',
-      'hold-screen', 'pick-screen', 'op-overlay', 'pin-overlay', 'log-screen',
+      'pick-screen', 'op-overlay', 'pin-overlay', 'log-screen',
     ];
     staleOverlays.forEach(function(id) {
       var el = document.getElementById(id);
       if (el) el.classList.remove('active');
     });
+  }
+
+  // v8.1.58: Factory reset support
+  function clearAllVouchers() {
+    try { localStorage.removeItem(VOUCHER_KEY); } catch(e) {}
   }
 
   return {
@@ -346,5 +352,6 @@ var CashOut = (function() {
     startZeroBalanceFlash: startZeroBalanceFlash,
     stopZeroBalanceFlash:  stopZeroBalanceFlash,
     loadVouchers:        loadVouchers,
+    clearAllVouchers:    clearAllVouchers,
   };
 })();
