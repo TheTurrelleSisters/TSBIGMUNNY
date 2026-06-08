@@ -11,7 +11,7 @@
     // MANDATORY RULE: Update GAME_VERSION on every build alongside CACHE_NAME.
     // This is displayed on the splash screen and used for cache validation.
     // Never deliver a zip with a stale GAME_VERSION.
-    var GAME_VERSION = 'v8.1.58';
+    var GAME_VERSION = 'v8.1.59';
 
     // ── SPIN LOCK SAFETY NET ──────────────────────────────────────────
     // If executeSpin() throws an uncaught promise rejection, spinInProgress
@@ -256,12 +256,17 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
   </div>
 
   <!-- JACKPOT METERS — just above reels -->
+  <!-- JACKPOT METERS — PROG top row, levels below -->
   <div id="jackpot-bar">
-    <div class="jp-meter jp-prog-tile" id="jp-progressive"><div class="jp-label">PROG</div><div class="jp-amount" id="ts-prog-val">$500.00</div></div>
-    <div class="jp-meter" id="jp-grand"><div class="jp-label">GRAND</div><div class="jp-amount">$2000.00</div></div>
-    <div class="jp-meter" id="jp-major"><div class="jp-label">MAJOR</div><div class="jp-amount">$100.00</div></div>
-    <div class="jp-meter" id="jp-minor"><div class="jp-label">MINOR</div><div class="jp-amount">$50.00</div></div>
-    <div class="jp-meter" id="jp-mini"><div class="jp-label">MINI</div><div class="jp-amount">$25.00</div></div>
+    <div id="jp-prog-row">
+      <div class="jp-meter" id="jp-progressive"><div class="jp-label">PROGRESSIVE</div><div class="jp-amount" id="ts-prog-val">$0.00</div></div>
+    </div>
+    <div id="jp-levels-row">
+      <div class="jp-meter" id="jp-grand"><div class="jp-label">GRAND</div><div class="jp-amount">$2000.00</div></div>
+      <div class="jp-meter" id="jp-major"><div class="jp-label">MAJOR</div><div class="jp-amount">$100.00</div></div>
+      <div class="jp-meter" id="jp-minor"><div class="jp-label">MINOR</div><div class="jp-amount">$50.00</div></div>
+      <div class="jp-meter" id="jp-mini"><div class="jp-label">MINI</div><div class="jp-amount">$25.00</div></div>
+    </div>
   </div>
 
   <!-- REEL SECTION -->
@@ -282,6 +287,7 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 
   <!-- WIN DISPLAY -->
   <div id="win-section">
+    <div id="balance-box"><div id="balance-label">BALANCE</div><div id="balance-val">$500.00</div></div>
     <div id="win-box"><div id="win-label">WIN</div><div id="win-amount">$0.00</div></div>
     <div id="bonus-total-box"><div id="bonus-total-label">🔴 BONUS TOTAL</div><div id="bonus-total-amount">$0.00</div></div>
   </div>
@@ -289,11 +295,7 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 
   <!-- VOLUME BAR REMOVED v7.0.6 — volume controls removed per owner; level fixed at 50% in audio.js -->
 
-  <!-- INFO BAR -->
-  <div id="info-bar">
-    <div class="info-item"><div class="info-label">BALANCE</div><div class="info-value" id="balance-val">$500.00</div></div>
-    <div class="info-item"><div class="info-label">TOTAL BET</div><div class="info-value" id="total-bet-val">$2.50</div></div>
-    <div class="info-item"><div class="info-label">LINES</div><div class="info-value" id="lines-display">5</div></div>
+  <!-- INFO BAR removed — balance moved to win-section, bet stats in controls -->
   </div>
   <!-- CONTROLS — MLMC BIG MUNNY style -->
   <!-- CONTROLS — v8.1.0 redesign: SPIN circle, rect buttons, denom square, HELP btn -->
@@ -525,6 +527,10 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 
 
 <!-- SCRIPTS — load order matters -->
+<script>
+  var PROG_GAME_ID = 'turrelle';
+  var PROG_DENOM   = 1.00;
+</script>
 <script src="progressive.js?v=1.3"></script>
 <script src="broadcast-init.js?v=1.0"></script>
 <script src="paytable.js?v=8.1.58"></script>
@@ -704,7 +710,7 @@ window.addEventListener('popstate', function(e) {
   var _wakeLockVideo = null;
 
   function _acquireWakeLock() {
-    // v8.1.58: Try Screen Wake Lock API first (Chrome 84+, Samsung Browser 13+)
+    // v8.1.59: Try Screen Wake Lock API first (Chrome 84+, Samsung Browser 13+)
     if (typeof navigator !== 'undefined' && navigator.wakeLock) {
       navigator.wakeLock.request('screen').then(function(lock) {
         _wakeLock = lock;
@@ -718,7 +724,7 @@ window.addEventListener('popstate', function(e) {
   }
 
   function _acquireVideoFallback() {
-    // v8.1.58 FIX: Use a valid 1x1 looping MP4 (NoSleep.js approach).
+    // v8.1.59 FIX: Use a valid 1x1 looping MP4 (NoSleep.js approach).
     // Previous 40-byte stub was not playable — video fallback was silently failing.
     if (!_wakeLockVideo) {
       _wakeLockVideo = document.createElement('video');
@@ -738,7 +744,7 @@ window.addEventListener('popstate', function(e) {
     if (_wakeLockVideo) { _wakeLockVideo.pause(); }
   }
 
-  // v8.1.58: Expose wake lock globally so bonuses.js can acquire it during RS spins
+  // v8.1.59: Expose wake lock globally so bonuses.js can acquire it during RS spins
   window._gameAcquireWakeLock = _acquireWakeLock;
 
   // Re-acquire on visibility change (wake lock released when tab hides)
@@ -748,7 +754,7 @@ window.addEventListener('popstate', function(e) {
     }
   });
 
-  // v8.1.58 FIX: Reduce re-acquisition interval from 15s → 3s.
+  // v8.1.59 FIX: Reduce re-acquisition interval from 15s → 3s.
   // Red Spin bonus can run for minutes with no user interaction;
   // OS may revoke the lock between the old 15s checks.
   setInterval(function() {
@@ -1251,10 +1257,6 @@ window.addEventListener('popstate', function(e) {
 </div>
 
 
-<script>
-  var PROG_GAME_ID = 'turrelle';
-  var PROG_DENOM   = 1.00;
-</script>
 <script>
   // Init progressive meter display
   if (typeof Progressive !== 'undefined') {
