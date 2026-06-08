@@ -255,13 +255,17 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
     <img id="title-banner" src="assets/TSistsersBigMunnyTitle.png" alt="The Turrelle Sisters Big Munny">
   </div>
 
-  <!-- JACKPOT METERS — just above reels -->
+  <!-- JACKPOT METERS — PROG top row, levels below -->
   <div id="jackpot-bar">
-    <div class="jp-meter jp-prog-tile" id="jp-progressive"><div class="jp-label">PROG</div><div class="jp-amount" id="ts-prog-val">$500.00</div></div>
-    <div class="jp-meter" id="jp-grand"><div class="jp-label">GRAND</div><div class="jp-amount">$2000.00</div></div>
-    <div class="jp-meter" id="jp-major"><div class="jp-label">MAJOR</div><div class="jp-amount">$100.00</div></div>
-    <div class="jp-meter" id="jp-minor"><div class="jp-label">MINOR</div><div class="jp-amount">$50.00</div></div>
-    <div class="jp-meter" id="jp-mini"><div class="jp-label">MINI</div><div class="jp-amount">$25.00</div></div>
+    <div id="jp-prog-row">
+      <div class="jp-meter" id="jp-progressive"><div class="jp-label">PROGRESSIVE</div><div class="jp-amount" id="ts-prog-val">$0.00</div></div>
+    </div>
+    <div id="jp-levels-row">
+      <div class="jp-meter" id="jp-grand"><div class="jp-label">GRAND</div><div class="jp-amount">$2000.00</div></div>
+      <div class="jp-meter" id="jp-major"><div class="jp-label">MAJOR</div><div class="jp-amount">$100.00</div></div>
+      <div class="jp-meter" id="jp-minor"><div class="jp-label">MINOR</div><div class="jp-amount">$50.00</div></div>
+      <div class="jp-meter" id="jp-mini"><div class="jp-label">MINI</div><div class="jp-amount">$25.00</div></div>
+    </div>
   </div>
 
   <!-- REEL SECTION -->
@@ -282,6 +286,7 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 
   <!-- WIN DISPLAY -->
   <div id="win-section">
+    <div id="balance-box"><div id="balance-label">BALANCE</div><div id="balance-val">$500.00</div></div>
     <div id="win-box"><div id="win-label">WIN</div><div id="win-amount">$0.00</div></div>
     <div id="bonus-total-box"><div id="bonus-total-label">🔴 BONUS TOTAL</div><div id="bonus-total-amount">$0.00</div></div>
   </div>
@@ -289,12 +294,7 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 
   <!-- VOLUME BAR REMOVED v7.0.6 — volume controls removed per owner; level fixed at 50% in audio.js -->
 
-  <!-- INFO BAR -->
-  <div id="info-bar">
-    <div class="info-item"><div class="info-label">BALANCE</div><div class="info-value" id="balance-val">$500.00</div></div>
-    <div class="info-item"><div class="info-label">TOTAL BET</div><div class="info-value" id="total-bet-val">$2.50</div></div>
-    <div class="info-item"><div class="info-label">LINES</div><div class="info-value" id="lines-display">5</div></div>
-  </div>
+  <!-- INFO BAR removed v8.1.58 — duplicate of bet-stats-row in controls -->
   <!-- CONTROLS — MLMC BIG MUNNY style -->
   <!-- CONTROLS — v8.1.0 redesign: SPIN circle, rect buttons, denom square, HELP btn -->
   <div id="controls">
@@ -525,8 +525,12 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 
 
 <!-- SCRIPTS — load order matters -->
-<script src="progressive.js?v=1.3"></script>
-<script src="broadcast-init.js?v=1.0"></script>
+<script>
+  var PROG_GAME_ID = 'turrelle';
+  var PROG_DENOM   = 1.00;
+</script>
+<script src="../progressive.js?v=1.3"></script>
+<script src="../broadcast-init.js?v=1.0"></script>
 <script src="paytable.js?v=8.1.58"></script>
 <script src="state.js?v=8.1.58"></script>
 <script src="audio.js?v=8.1.58"></script>
@@ -535,6 +539,16 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 <script src="ui.js?v=8.1.58"></script>
 <script src="operator.js?v=8.1.58"></script>
 <script src="cashout.js?v=8.1.58"></script>
+<script>
+  // Init progressive meter display
+  if (typeof Progressive !== 'undefined') {
+    Progressive.onChange(function(val) {
+      var el = document.getElementById('ts-prog-val');
+      if (el) el.textContent = '$' + val.toFixed(2);
+    });
+    Progressive.init();
+  }
+</script>
 
 <script>
 'use strict';
@@ -1250,20 +1264,5 @@ window.addEventListener('popstate', function(e) {
   </div>
 </div>
 
-
-<script>
-  var PROG_GAME_ID = 'turrelle';
-  var PROG_DENOM   = 1.00;
-</script>
-<script>
-  // Init progressive meter display
-  if (typeof Progressive !== 'undefined') {
-    Progressive.onChange(function(val) {
-      var el = document.getElementById('ts-prog-val');
-      if (el) el.textContent = '$' + val.toFixed(2);
-    });
-    Progressive.init();
-  }
-</script>
 </body>
 </html>
