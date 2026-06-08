@@ -88,10 +88,18 @@ function evaluateLine(lineSymbols, betPerLine) {
   var multiplier = 1 + (josieCount * 2) + (sashaCount * 1);
   if (multiplier < 1) multiplier = 1;
 
+  // ── STRAYPUP 5OAK PROGRESSIVE TRIGGER ──────────────────────────────
+  // All 5 Scott (StrayPup) symbols on a payline = progressive jackpot trigger.
+  // Existing 5OAK base pay is STILL awarded (150 × betPerLine × multiplier).
+  // Progressive pot pays ON TOP. isProgressiveHit flag signals executeSpin to act.
+  // ────────────────────────────────────────────────────────────────────────────
+  var isProgressiveHit = (symbolKey === 'STRAYPUP' && matchCount === 5);
+
   return {
     amount: basePay * betPerLine * multiplier,
     symbolKey: symbolKey, count: matchCount,
     wildCount: wildCount, multiplier: multiplier, basePay: basePay,
+    isProgressiveHit: isProgressiveHit
   };
 }
 
@@ -390,6 +398,7 @@ async function executeSpin(betPerLine, linesActive, denom, creditsPerLine) {
   if (creditsPerLine) GameState.lastCreditsPerLine = _credits;
 
   contributeToJackpots(totalBet);
+  if (typeof Progressive !== 'undefined') Progressive.contribute(totalBet);
   startGameRecord({ perLine: betPerLine, lines: linesActive, total: totalBet });
   logEvent('SPIN_START', { bet: { perLine: betPerLine, lines: linesActive, total: totalBet }, serialNumber: _currentSpinSerial, balanceBefore: GameState.balance + totalBet });
 
@@ -525,6 +534,25 @@ async function executeSpin(betPerLine, linesActive, denom, creditsPerLine) {
     Audio.playBellsForWin(result.totalWin, betPerLine);
   }
 
+  // ── PROGRESSIVE JACKPOT CHECK — STRAYPUP 5OAK ────────────────────────
+  var _progHit = false;
+  for (var _pwi = 0; _pwi < result.paylineWins.length; _pwi++) {
+    if (result.paylineWins[_pwi].isProgressiveHit) { _progHit = true; break; }
+  }
+  if (_progHit && typeof Progressive !== 'undefined') {
+    var _progAmt = Progressive.hit({
+      pattern: 'Scott 5OAK',
+      balls:   0,
+      bet:     totalBet
+    });
+    // Award progressive on top of existing base pay
+    GameState.balance += _progAmt;
+    result.totalWin   += _progAmt;
+    result.progressiveHit      = true;
+    result.progressiveHitAmt   = _progAmt;
+  }
+  // ── END PROGRESSIVE CHECK ─────────────────────────────────────────────
+
   if (result.paylineWins.length > 0 || result.scatterWin) {
     if (!_skipPaylineAnimations) {
       var _fastWin = !!(redSpinTriggeredEarly || result.triggerBonusFeature);
@@ -547,6 +575,29 @@ async function executeSpin(betPerLine, linesActive, denom, creditsPerLine) {
     UI.updateBalance(GameState.balance);
     if (result.totalWin > 0) UI.updateWinDisplay(result.totalWin);
   }
+
+  // ── PROGRESSIVE HIT CELEBRATION — Scott 5OAK ─────────────────────────
+  if (result.progressiveHit && result.progressiveHitAmt) {
+    // Use existing jackpot overlay with custom messaging
+    var _jpOv  = document.getElementById('jackpot-overlay');
+    var _jpTyp = document.getElementById('jackpot-type-text');
+    var _jpAmt = document.getElementById('jackpot-amount-text');
+    var _jpCtx = document.getElementById('jackpot-context-text');
+    var _jpHnt = document.getElementById('jackpot-tap-hint');
+    if (_jpOv && _jpTyp && _jpAmt) {
+      _jpTyp.textContent = 'PROGRESSIVE JACKPOT!';
+      _jpAmt.textContent = '$' + result.progressiveHitAmt.toFixed(2);
+      if (_jpCtx) _jpCtx.textContent = 'SCOTT 5 OF A KIND — BASE PAY + PROGRESSIVE POT!';
+      if (_jpHnt) _jpHnt.textContent = 'TAP TO CONTINUE';
+      _jpOv.style.display = 'flex';
+      _jpOv.onclick = function() { _jpOv.style.display = 'none'; _jpOv.onclick = null; };
+      _jpOv.ontouchend = function(e) { e.preventDefault(); _jpOv.style.display = 'none'; _jpOv.ontouchend = null; };
+    }
+    // Update the progressive tile display immediately
+    var _ptEl = document.getElementById('ts-prog-val');
+    if (_ptEl && typeof Progressive !== 'undefined') _ptEl.textContent = Progressive.getDisplay();
+  }
+  // ── END PROGRESSIVE CELEBRATION ──────────────────────────────────────
 
   if (redSpinTriggeredEarly) {
     if (typeof Audio !== 'undefined') {
