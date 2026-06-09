@@ -11,7 +11,7 @@
     // MANDATORY RULE: Update GAME_VERSION on every build alongside CACHE_NAME.
     // This is displayed on the splash screen and used for cache validation.
     // Never deliver a zip with a stale GAME_VERSION.
-    var GAME_VERSION = 'v8.1.60';
+    var GAME_VERSION = 'v8.2.0';
 
     // ── SPIN LOCK SAFETY NET ──────────────────────────────────────────
     // If executeSpin() throws an uncaught promise rejection, spinInProgress
@@ -293,11 +293,11 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
   </div>
   <div id="win-line-label"></div>
 
-  <!-- VOLUME BAR REMOVED v7.0.6 — volume controls removed per owner; level fixed at 50% in audio.js -->
+  <!-- VOLUME BAR REMOVED v8.2.0 — volume controls removed per owner; level fixed at 50% in audio.js -->
 
   <!-- INFO BAR removed — balance moved to win-section, bet stats in controls -->
   <!-- CONTROLS — MLMC BIG MUNNY style -->
-  <!-- CONTROLS — v8.1.0 redesign: SPIN circle, rect buttons, denom square, HELP btn -->
+  <!-- CONTROLS — v8.2.0 redesign: SPIN circle, rect buttons, denom square, HELP btn -->
   <div id="controls">
 
     <!-- Row 1: Bet stats + denom square + HELP -->
@@ -1265,6 +1265,16 @@ window.addEventListener('popstate', function(e) {
     });
     Progressive.init();
   }
+</script>
+
+<script>
+/* Read player nickname passed from Gold Coins Casino lobby (?player=Name) */
+(function(){
+  try {
+    var _p = new URLSearchParams(window.location.search).get('player');
+    if (_p && _p.trim().length >= 2) window._playerNickname = _p.trim().substring(0,16);
+  } catch(e) {}
+}());
 </script>
 </body>
 </html>
