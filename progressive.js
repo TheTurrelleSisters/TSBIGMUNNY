@@ -583,7 +583,7 @@ var Progressive = (function () {
             balls:          0,
             bet:            0,
             player_session: _sessionKey,
-            player_label:   _playerLabel || _sessionKey,
+            player_label:   _playerNickname || _playerLabel || _sessionKey,
             game_title:     PROG_GAME_TITLES[PROG_GAME_ID] || PROG_GAME_ID,
             win_patterns:   'Force Jackpot'
           });
@@ -700,7 +700,7 @@ var Progressive = (function () {
       balls:          (info && info.balls)   ? info.balls   : 0,
       bet:            (info && info.bet)     ? info.bet     : 0,
       player_session: _sessionKey,
-      player_label:   _playerLabel || _sessionKey,
+      player_label:   _playerNickname || _playerLabel || _sessionKey,
       game_title:     PROG_GAME_TITLES[PROG_GAME_ID] || PROG_GAME_ID,
       win_patterns:   patternNames
     };
