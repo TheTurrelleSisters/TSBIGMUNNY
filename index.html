@@ -1283,12 +1283,18 @@ window.addEventListener('popstate', function(e) {
         if (banner) banner.classList.toggle('show', !isOnline);
         if (lbl)    { lbl.classList.toggle('local-mode', !isOnline);
                       lbl.textContent = isOnline ? 'PROGRESSIVE' : 'LOCAL'; }
-        if (val)    val.classList.toggle('local-mode', !isOnline);
+        if (val)    { val.classList.toggle('local-mode', !isOnline); val.textContent = _fmtProg(Progressive.getValue()); }
       });
+    }
+    function _fmtProg(v) {
+      var n = parseFloat(v) || 0;
+      var parts = n.toFixed(2).split('.');
+      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      return '$' + parts[0] + '.' + parts[1];
     }
     Progressive.onChange(function(val) {
       var el = document.getElementById('ts-prog-val');
-      if (el) el.textContent = '$' + val.toFixed(2);
+      if (el) el.textContent = _fmtProg(val);
     });
     Progressive.init();
   }

@@ -110,7 +110,7 @@ var Progressive = (function () {
   function _loadSDK(cb) {
     if (typeof window !== 'undefined' && window.supabase) { cb(); return; }
     var s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+    s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.0/dist/umd/supabase.min.js';
     s.onload  = cb;
     s.onerror = function () {
       console.warn('[Progressive] SDK load failed — offline mode.');
@@ -524,7 +524,7 @@ var Progressive = (function () {
             denom:       PROG_DENOM,
             joinedAt:    new Date().toISOString(),
             playerLabel: _playerLabel || ('sess_' + _sessionKey.substr(0, 6)),
-            nickname:    _playerNickname || _playerLabel || ('sess_' + _sessionKey.substr(0, 6))
+            nickname:    _playerNickname || _playerLabel || ('sess_' + _sessionKey.substr(0, 6)),
             sessionKey:  _sessionKey
           });
         }
@@ -768,7 +768,12 @@ var Progressive = (function () {
 
   /* ── Accessors ── */
   function mustHit()            { return _localMode ? (_localPotValue >= _localPotCeiling) : (_localValue >= _ceiling); }
-  function getDisplay()         { var v = _localMode ? _localPotValue : _localValue; return '$' + v.toFixed(2); }
+  function getDisplay() {
+    var v = _localMode ? _localPotValue : _localValue;
+    var parts = v.toFixed(2).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return '$' + parts[0] + '.' + parts[1];
+  }
   function getValue()           { return _localMode ? _localPotValue : _localValue; }
   function isLocalMode()        { return _localMode; }
   function isConnected()        { return _connected; }
