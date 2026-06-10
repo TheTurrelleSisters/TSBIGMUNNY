@@ -269,6 +269,8 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
   <!-- JACKPOT METERS — just above reels -->
   <!-- JACKPOT METERS — PROG top row, levels below -->
   <!-- PROGRESSIVE OFFLINE BANNER -->
+<div id="splash-conn-status" style="display:none;font-size:10px;text-align:center;padding:3px;color:#ffaa00;letter-spacing:1px;"></div>
+<div id="splash-ball-status" style="display:none;"></div>
 <div id="prog-offline-banner">
   <div class="pob-text">&#9888; Progressive Jackpot Unavailable &mdash; Reconnecting&hellip;</div>
   <div class="pob-sub">Local jackpot active &bull; Wide area play resumes on reconnect</div>
@@ -1296,7 +1298,16 @@ window.addEventListener('popstate', function(e) {
       var el = document.getElementById('ts-prog-val');
       if (el) el.textContent = _fmtProg(val);
     });
-    Progressive.init();
+    Progressive.init(function() {
+      var connEl = document.getElementById('splash-conn-status');
+      if (connEl) {
+        connEl.style.display = 'block';
+        connEl.textContent = Progressive.isConnected()
+          ? '✔ Wide area connected'
+          : '⚠ Local mode — no wide area';
+        connEl.style.color = Progressive.isConnected() ? '#00ff88' : '#ffaa00';
+      }
+    });
   }
 </script>
 
