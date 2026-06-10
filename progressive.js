@@ -490,24 +490,13 @@ var Progressive = (function () {
      ═══════════════════════════════════════════════════════════════ */
 
   /*
-   * updateBallPos(pos) — called by game every 1.3s via _activeCallNext.
-   * Debounced — only writes to DB if pos changed and 1.3s elapsed.
-   * Updates ball_call.ball_pos so joining players start at correct position.
+   * updateBallPos(pos) — STUBBED in v8.2.1.
+   * Ball position advances are now sent over WABC Broadcast (wabc.js).
+   * DB tick-writes removed to prevent CDC replication pool saturation.
+   * Checkpoint writes (new sequence, reset) are handled by the WABC operator.
    */
   function updateBallPos(pos) {
-    if (!_connected || !_client) return;
-    if (pos === _lastSentBallPos) return;
-    _lastSentBallPos = pos;
-    if (_ballPosTimer) return; /* debounce */
-    _ballPosTimer = setTimeout(function() {
-      _ballPosTimer = null;
-      _client.rpc('update_ball_pos', {
-        p_game_id: 'WABC', /* BUG4: shared WABC sequence */
-        p_pos:     _lastSentBallPos
-      }).then(function(res) {
-        if (res.error) console.warn('[Progressive] updateBallPos error:', res.error.message);
-      });
-    }, 300); /* 300ms debounce — safely under 1.3s interval */
+    /* no-op — WABC handles broadcast */
   }
 
   /* ═══════════════════════════════════════════════════════════════
