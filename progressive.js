@@ -537,7 +537,7 @@ var Progressive = (function () {
             denom:       PROG_DENOM,
             joinedAt:    new Date().toISOString(),
             playerLabel: _playerLabel || ('sess_' + _sessionKey.substr(0, 6)),
-            nickname:    _playerNickname || _playerLabel || ('sess_' + _sessionKey.substr(0, 6))
+            nickname:    _playerNickname || _playerLabel || ('sess_' + _sessionKey.substr(0, 6)),
             sessionKey:  _sessionKey
           });
         }
@@ -785,7 +785,12 @@ var Progressive = (function () {
 
   /* ── Accessors ── */
   function mustHit()            { return _localMode ? (_localPotValue >= _localPotCeiling) : (_localValue >= _ceiling); }
-  function getDisplay()         { var v = _localMode ? _localPotValue : _localValue; return '$' + v.toFixed(2); }
+  function getDisplay() {
+    var v = _localMode ? _localPotValue : _localValue;
+    var p = v.toFixed(2).split('.');
+    p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return '$' + p.join('.');
+  }
   function getValue()           { return _localMode ? _localPotValue : _localValue; }
   function isLocalMode()        { return _localMode; }
   function isConnected()        { return _connected; }
