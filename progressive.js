@@ -24,9 +24,9 @@ var PROG_DENOM   = (typeof PROG_DENOM   !== 'undefined') ? PROG_DENOM   : 1.00;
 
 /* Game title map for hit records */
 var PROG_GAME_TITLES = {
-  'straypups_1d': 'StrayPups Big Munny $1',
-  'straypups_5d': 'StrayPups Big Munny $5',
-  'turrelle':     'Turrelle Sisters',
+  'straypups_1d': 'Stray Pups Big Munny $1',
+  'straypups_5d': 'Stray Pups Big Munny $5',
+  'turrelle':     'The Turrelle Sisters Big Munny',
   'unknown':      'Unknown Game'
 };
 
@@ -46,6 +46,10 @@ var Progressive = (function () {
   var _presenceCount     = 0;
   var _presenceListeners = [];
   var _sessionKey        = 'sess_' + Math.random().toString(36).substr(2, 9);
+  var _joinedAt          = null;
+  var _lastSpinTrackTime = 0;
+  var _lastSpinTime      = null;
+  var _TRACK_THROTTLE_MS = 30000; /* Only touch player_registry.last_seen every 30s max */
 
   /* ── Player registry state ── */
   var _playerNum         = 0;     /* assigned after register_player RPC */
@@ -521,16 +525,53 @@ var Progressive = (function () {
       })
       .subscribe(function (status) {
         if (status === 'SUBSCRIBED') {
+          _joinedAt = new Date().toISOString();
           _presenceChannel.track({
             gameId:      PROG_GAME_ID,
             denom:       PROG_DENOM,
-            joinedAt:    new Date().toISOString(),
+            joinedAt:    _joinedAt,
             playerLabel: _playerLabel || ('sess_' + _sessionKey.substr(0, 6)),
             nickname:    _playerNickname || _playerLabel || ('sess_' + _sessionKey.substr(0, 6)),
             sessionKey:  _sessionKey
           });
         }
       });
+  }
+
+  /* updateLastSpin()
+     Touches player_registry.last_seen via the touch_player_last_seen RPC
+     (added in v5.84 for the bingo games) so Progressive Operator / Floor
+     Manager's "Connected/Inactive" displays stay accurate for THIS game
+     too. Throttled to once every 30s. Ported from straypups v5.86
+     progressive.js -- safe to call every spin. */
+  function updateLastSpin() {
+    if (!_playerRegistered) return;
+    _lastSpinTime = new Date().toISOString();
+    var now = Date.now();
+    if (now - _lastSpinTrackTime < _TRACK_THROTTLE_MS) return;
+    _lastSpinTrackTime = now;
+
+    if (_presenceChannel) {
+      _presenceChannel.track({
+        gameId:      PROG_GAME_ID,
+        denom:       PROG_DENOM,
+        joinedAt:    _joinedAt || new Date().toISOString(),
+        playerLabel: _playerLabel || ('sess_' + _sessionKey.substr(0, 6)),
+        nickname:    _playerNickname || _playerLabel || ('sess_' + _sessionKey.substr(0, 6)),
+        sessionKey:  _sessionKey,
+        lastSpin:    _lastSpinTime
+      });
+    }
+
+    if (_client && _connected && _sessionKey) {
+      _client.rpc('touch_player_last_seen', { p_session_key: _sessionKey })
+        .then(function(res) {
+          if (res.error) console.warn('[Progressive] touch_player_last_seen error:', res.error.message);
+        })
+        .catch(function(err) {
+          console.warn('[Progressive] touch_player_last_seen catch:', err);
+        });
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -800,6 +841,7 @@ var Progressive = (function () {
     getBallCall:        getBallCall,
     refreshBallCall:    refreshBallCall,
     registerPlayer:     registerPlayer,
+    updateLastSpin:     updateLastSpin,
     mustHit:            mustHit,
     getDisplay:         getDisplay,
     getValue:           getValue,

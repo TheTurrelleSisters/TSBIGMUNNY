@@ -398,7 +398,14 @@ async function executeSpin(betPerLine, linesActive, denom, creditsPerLine) {
   if (creditsPerLine) GameState.lastCreditsPerLine = _credits;
 
   contributeToJackpots(totalBet);
-  if (typeof Progressive !== 'undefined') Progressive.contribute(totalBet);
+  if (typeof Progressive !== 'undefined') {
+    Progressive.contribute(totalBet);
+    /* Register player on first spin — safe to call multiple times.
+       Also keeps player_registry.last_seen current so Progressive
+       Operator / Floor Manager "Connected" displays work for this game. */
+    Progressive.registerPlayer(null, window._playerNickname || null);
+    if (Progressive.updateLastSpin) Progressive.updateLastSpin();
+  }
   startGameRecord({ perLine: betPerLine, lines: linesActive, total: totalBet });
   logEvent('SPIN_START', { bet: { perLine: betPerLine, lines: linesActive, total: totalBet }, serialNumber: _currentSpinSerial, balanceBefore: GameState.balance + totalBet });
 
