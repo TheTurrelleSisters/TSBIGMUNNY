@@ -560,3 +560,36 @@ Currently all denoms use the base PAY_TABLE (no overrides active yet).
 | v6l93 | Version badge on splash. Cache fix (sessionStorage version check). RS Option A chain (35%/20%). H&S 7-tier coin cap. | 2026-05-20 |
 | v6l92 | PAY_TABLE_BY_DENOM scaffold. RS freq 0.240→0.120. HS_LAND 0.055→0.022. MC tool calibrated. | 2026-05-20 |
 | v6l90 | Gold coins 10→15/reel. MIN_GAP exception for BONUS_ID (3→1). RS freq 0.286→0.240. | 2026-05-20 |
+
+---
+
+## Virtual Wallet System (v8.2.3)
+
+### Architecture
+The game participates in the casino-wide virtual wallet system backed by
+Supabase (`gdmmoeggkqsvqnqyrubx`). All vouchers are stored in the shared
+`vouchers` table; wallet balances in the `wallet` table. Vouchers are
+single-use (`status: 'available' → 'redeemed'`). No real money involved.
+
+### Game slug
+`source_game = 'tsbigmunny'`
+
+### Cash Out flow
+1. Player taps CASH OUT → balance zeroed immediately → `#voucher-modal` shows
+2. Supabase voucher created async (localStorage fallback if offline)
+3. Player taps "SAVE TO WALLET" → toast → lobby navigation after 2.2s
+4. Player taps "CLOSE" → lobby navigation immediately
+
+### Insert Cash flow
+1. Player taps INSERT CASH → `#wallet-modal` loads vouchers from Supabase
+2. Vouchers from all games shown with source label and timestamp
+3. Player taps INSERT on a voucher → Supabase marks redeemed → credits added
+
+### Generate Voucher flow (from wallet modal)
+1. Player taps CREATE VOUCHER → amount entry modal
+2. Voucher created in Supabase `source_game:'lobby'`
+3. Wallet balance decremented (honor system, may go negative)
+
+### Exit
+EXIT button navigates to `theturrellesisters.github.io/turrelle_gold_coins_casino/`
+using `document.referrer` when available.

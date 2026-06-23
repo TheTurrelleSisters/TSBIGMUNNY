@@ -50,3 +50,55 @@ This is the first PHASE_PLAN entry for this repo (created v8.2.2).
 ### On the horizon
 - Phase 5 (per casino-wide phase plan maintained by Sasha): convert
   TSBIGMUNNY from a Class III slot machine to a bingo game. Not started.
+
+---
+
+### v8.2.3 — Virtual Wallet (Supabase) + Exit Button wired
+
+#### Files changed
+| File | Change |
+|---|---|
+| `cashout.js` | Full rewrite — Supabase wallet integration |
+| `index.html` | `GAME_VERSION` v8.2.2→v8.2.3; all `?v=` bumped |
+| `service-worker.js` | `CACHE_NAME` turrelle-v8.1.65→turrelle-v8.2.3 |
+| `PHASE_PLAN.md` | This entry |
+| `GAME_DESIGN_MANUAL.md` | Wallet section updated |
+
+#### What changed in cashout.js
+
+**Exit button wired:** `exit-btn` now calls `doExit()` which navigates to
+`theturrellesisters.github.io/turrelle_gold_coins_casino/` (uses
+`document.referrer` if available, canonical URL as fallback).
+
+**Virtual wallet — Supabase integration:**
+- `doCashOut()`: creates voucher in Supabase `vouchers` table
+  (`source_game: 'tsbigmunny'`), increments `wallet.balance`, shows
+  existing `#voucher-modal` with updated casino name ("Gold Coins Casino").
+  After player taps "SAVE TO WALLET" → toast 2s → `doExit()` → lobby.
+  After player taps "CLOSE" → `doExit()` → lobby immediately.
+- `doInsertCash()`: loads available vouchers from Supabase by nickname,
+  displays in `#wallet-modal` with source game label and date. Shows
+  wallet balance in subtitle. Falls back to localStorage if offline.
+- `redeemVoucher(id, fromSupabase, amount)`: marks voucher `redeemed`
+  in Supabase; adds amount to `GameState.balance`. Legacy single-arg
+  call (localStorage path) preserved for backward compatibility.
+- `doCreateVoucher()` / `confirmCreateVoucher()`: creates voucher in
+  Supabase `source_game:'lobby'`, deducts from wallet balance (honor
+  system, may go negative per owner direction). Falls back to
+  localStorage if offline.
+- `doCashOutAmount()` (jackpot cash out): creates Supabase voucher for
+  jackpot amount, increments wallet balance.
+- localStorage fallback preserved throughout — all paths degrade
+  gracefully if no nickname or no network.
+- `VOUCHER_KEY_LS` retained — existing offline vouchers in localStorage
+  remain redeemable via the legacy path.
+
+#### Crash prevention checklist results
+- `node --check` all runtime JS files: PASS (tools/red_spin_original_design_v6l64.js
+  is an ES6+ archive tool, not a runtime file, not loaded by index.html — SKIP)
+- `wc -c` all .js files: no zero-byte files
+- `DENOM_CREDIT_LOCK` defined in paytable.js: not applicable (Class III, no denom lock)
+- Brace balance in bonuses.js: PASS
+- Reel sums: unchanged (no reel changes this build)
+- Critical element IDs: cashout-btn, insertcash-btn, exit-btn, voucher-modal,
+  wallet-modal, create-voucher-modal all present in index.html DOM: PASS
