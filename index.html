@@ -11,7 +11,7 @@
     // MANDATORY RULE: Update GAME_VERSION on every build alongside CACHE_NAME.
     // This is displayed on the splash screen and used for cache validation.
     // Never deliver a zip with a stale GAME_VERSION.
-    var GAME_VERSION = 'v8.2.3';
+    var GAME_VERSION = 'v8.2.4';
 
     // ── SPIN LOCK SAFETY NET ──────────────────────────────────────────
     // If executeSpin() throws an uncaught promise rejection, spinInProgress
@@ -84,7 +84,7 @@
 <meta name="format-detection" content="telephone=no">
 <title>The Turrelle Sisters Big Munny</title>
 <link rel="icon" href="assets/icons/icon-96x96.png">
-<link rel="stylesheet" href="style.css?v=8.2.3">
+<link rel="stylesheet" href="style.css?v=8.2.4">
 <style>
 /* ── INSERT CASH TO PLAY — reel overlay msg ── */
 #reels-insert-msg {
@@ -551,14 +551,15 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 <script src="progressive.js?v=1.5"></script>
 <script src="wabc.js?v=1.0"></script>
 <script src="broadcast-init.js?v=1.1"></script>
-<script src="paytable.js?v=8.2.3"></script>
-<script src="state.js?v=8.2.3"></script>
-<script src="audio.js?v=8.2.3"></script>
-<script src="game.js?v=8.2.3"></script>
-<script src="bonuses.js?v=8.2.3"></script>
-<script src="ui.js?v=8.2.3"></script>
-<script src="operator.js?v=8.2.3"></script>
-<script src="cashout.js?v=8.2.3"></script>
+<script src="paytable.js?v=8.2.4"></script>
+<script src="state.js?v=8.2.4"></script>
+<script src="audio.js?v=8.2.4"></script>
+<script src="game.js?v=8.2.4"></script>
+<script src="bonuses.js?v=8.2.4"></script>
+<script src="ui.js?v=8.2.4"></script>
+<script src="operator.js?v=8.2.4"></script>
+<script src="wallet_module.js?v=8.2.4"></script>
+<script src="cashout.js?v=8.2.4"></script>
 
 <script>
 'use strict';
@@ -890,7 +891,8 @@ window.addEventListener('popstate', function(e) {
 
   try { UI.init(); } catch(e) { _showInitError('UI.init: ' + e.message); }
   try { Operator.init(); } catch(e) { console.warn('Operator.init:', e); }
-  try { CashOut.init(); } catch(e) { console.warn('CashOut.init:', e); }
+  try { WalletUI.init();
+    CashOut.init(); } catch(e) { console.warn('CashOut.init:', e); }
   try { initVolume(); } catch(e) { console.warn('initVolume:', e); }
   try { refreshDisplays(); } catch(e) { console.warn('refreshDisplays:', e); }
 
