@@ -11,7 +11,7 @@
     // MANDATORY RULE: Update GAME_VERSION on every build alongside CACHE_NAME.
     // This is displayed on the splash screen and used for cache validation.
     // Never deliver a zip with a stale GAME_VERSION.
-    var GAME_VERSION = 'v8.2.7';
+    var GAME_VERSION = 'v8.2.8';
 
     // ── SPIN LOCK SAFETY NET ──────────────────────────────────────────
     // If executeSpin() throws an uncaught promise rejection, spinInProgress
@@ -84,7 +84,7 @@
 <meta name="format-detection" content="telephone=no">
 <title>The Turrelle Sisters Big Munny</title>
 <link rel="icon" href="assets/icons/icon-96x96.png">
-<link rel="stylesheet" href="style.css?v=8.2.7">
+<link rel="stylesheet" href="style.css?v=8.2.8">
 <style>
 /* ── INSERT CASH TO PLAY — reel overlay msg ── */
 #reels-insert-msg {
@@ -554,13 +554,13 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
    Prevents blank reels caused by a previous crash or force-close. */
 (function() {
   try {
-    var raw = localStorage.getItem('tsbm_state');
+    var raw = localStorage.getItem('turrelleSisters_v1');
     if (raw) {
       var state = JSON.parse(raw);
       if (state && state.spinInProgress) {
         state.spinInProgress = false;
         state.activeBonus    = null;
-        localStorage.setItem('tsbm_state', JSON.stringify(state));
+        localStorage.setItem('turrelleSisters_v1', JSON.stringify(state));
         console.log('[TSBM Recovery] Cleared stuck spinInProgress flag');
       }
     }
@@ -570,36 +570,48 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 <script src="progressive.js?v=1.5"></script>
 <script src="wabc.js?v=1.0"></script>
 <script src="broadcast-init.js?v=1.1"></script>
-<script src="paytable.js?v=8.2.7"></script>
-<script src="state.js?v=8.2.7"></script>
-<script src="audio.js?v=8.2.7"></script>
-<script src="game.js?v=8.2.7"></script>
-<script src="bonuses.js?v=8.2.7"></script>
-<script src="ui.js?v=8.2.7"></script>
-<script src="operator.js?v=8.2.7"></script>
+<script src="paytable.js?v=8.2.8"></script>
+<script src="state.js?v=8.2.8"></script>
+<script src="audio.js?v=8.2.8"></script>
+<script src="game.js?v=8.2.8"></script>
+<script src="bonuses.js?v=8.2.8"></script>
+<script src="ui.js?v=8.2.8"></script>
+<script src="operator.js?v=8.2.8"></script>
 <script>
 /* ── WalletUI compatibility shim for TSBM (v8.2.7) ──
    wallet_module.js expects S.bal, updUI(), toast(), opLog(), sndCreditsAddUp().
    TSBM uses GameState.balance, UI.updateBalance(), UI.showToast(), logEvent().
    This shim bridges them so wallet_module works without modification.        */
 var S = {
-  get bal()    { return (typeof GameState !== 'undefined') ? GameState.balance : 0; },
-  set bal(v)   { if (typeof GameState !== 'undefined') { GameState.balance = v; UI.updateBalance(v); } }
+  get bal()  { return (typeof GameState !== 'undefined') ? GameState.balance : 0; },
+  set bal(v) {
+    if (typeof GameState !== 'undefined') {
+      GameState.balance = v;
+      /* Guard UI — may not be initialised yet during wallet load */
+      if (typeof UI !== 'undefined' && typeof UI.updateBalance === 'function') {
+        try { UI.updateBalance(v); } catch(e) {}
+      }
+    }
+  }
 };
 function updUI() {
-  if (typeof UI !== 'undefined' && typeof GameState !== 'undefined')
-    UI.updateBalance(GameState.balance);
+  if (typeof UI !== 'undefined' && typeof UI.updateBalance === 'function'
+      && typeof GameState !== 'undefined') {
+    try { UI.updateBalance(GameState.balance); } catch(e) {}
+  }
 }
 function toast(msg) {
-  if (typeof UI !== 'undefined') UI.showToast(msg, 2500);
+  if (typeof UI !== 'undefined' && typeof UI.showToast === 'function') {
+    try { UI.showToast(msg, 2500); } catch(e) {}
+  }
 }
 function sndCreditsAddUp() { /* TSBM handles its own audio */ }
 function opLog(obj) {
   if (typeof logEvent === 'function') logEvent(obj.type || 'WALLET_EVENT', obj);
 }
 </script>
-<script src="wallet_module.js?v=8.2.7"></script>
-<script src="cashout.js?v=8.2.7"></script>
+<script src="wallet_module.js?v=8.2.8"></script>
+<script src="cashout.js?v=8.2.8"></script>
 
 <script>
 'use strict';
@@ -933,6 +945,17 @@ window.addEventListener('popstate', function(e) {
   try { Operator.init(); } catch(e) { console.warn('Operator.init:', e); }
   try { WalletUI.init();
     CashOut.init(); } catch(e) { console.warn('CashOut.init:', e); }
+  /* Refresh wallet balance display after nick is set (TSBM sets it late) */
+  setTimeout(function() {
+    if (typeof WalletUI !== 'undefined' && typeof WalletUI.open === 'function') {
+      /* Re-trigger internal wallet load now that nickname is set */
+      var _wBal = document.getElementById('wov-bal');
+      if (_wBal && typeof window._playerNickname === 'string' && window._playerNickname) {
+        var _wNick = document.getElementById('wov-bal-nick');
+        if (_wNick) _wNick.textContent = '★ ' + window._playerNickname;
+      }
+    }
+  }, 1500);
   try { initVolume(); } catch(e) { console.warn('initVolume:', e); }
   try { refreshDisplays(); } catch(e) { console.warn('refreshDisplays:', e); }
 
