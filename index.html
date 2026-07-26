@@ -11,7 +11,7 @@
     // MANDATORY RULE: Update GAME_VERSION on every build alongside CACHE_NAME.
     // This is displayed on the splash screen and used for cache validation.
     // Never deliver a zip with a stale GAME_VERSION.
-    var GAME_VERSION = 'v8.2.4';
+    var GAME_VERSION = 'v8.2.6';
 
     // ── SPIN LOCK SAFETY NET ──────────────────────────────────────────
     // If executeSpin() throws an uncaught promise rejection, spinInProgress
@@ -84,7 +84,7 @@
 <meta name="format-detection" content="telephone=no">
 <title>The Turrelle Sisters Big Munny</title>
 <link rel="icon" href="assets/icons/icon-96x96.png">
-<link rel="stylesheet" href="style.css?v=8.2.4">
+<link rel="stylesheet" href="style.css?v=8.2.6">
 <style>
 /* ── INSERT CASH TO PLAY — reel overlay msg ── */
 #reels-insert-msg {
@@ -551,15 +551,36 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 <script src="progressive.js?v=1.5"></script>
 <script src="wabc.js?v=1.0"></script>
 <script src="broadcast-init.js?v=1.1"></script>
-<script src="paytable.js?v=8.2.4"></script>
-<script src="state.js?v=8.2.4"></script>
-<script src="audio.js?v=8.2.4"></script>
-<script src="game.js?v=8.2.4"></script>
-<script src="bonuses.js?v=8.2.4"></script>
-<script src="ui.js?v=8.2.4"></script>
-<script src="operator.js?v=8.2.4"></script>
-<script src="wallet_module.js?v=8.2.4"></script>
-<script src="cashout.js?v=8.2.4"></script>
+<script src="paytable.js?v=8.2.6"></script>
+<script src="state.js?v=8.2.6"></script>
+<script src="audio.js?v=8.2.6"></script>
+<script src="game.js?v=8.2.6"></script>
+<script src="bonuses.js?v=8.2.6"></script>
+<script src="ui.js?v=8.2.6"></script>
+<script src="operator.js?v=8.2.6"></script>
+<script>
+/* ── WalletUI compatibility shim for TSBM (v8.2.5) ──
+   wallet_module.js expects S.bal, updUI(), toast(), opLog(), sndCreditsAddUp().
+   TSBM uses GameState.balance, UI.updateBalance(), UI.showToast(), logEvent().
+   This shim bridges them so wallet_module works without modification.        */
+var S = {
+  get bal()    { return (typeof GameState !== 'undefined') ? GameState.balance : 0; },
+  set bal(v)   { if (typeof GameState !== 'undefined') { GameState.balance = v; UI.updateBalance(v); } }
+};
+function updUI() {
+  if (typeof UI !== 'undefined' && typeof GameState !== 'undefined')
+    UI.updateBalance(GameState.balance);
+}
+function toast(msg) {
+  if (typeof UI !== 'undefined') UI.showToast(msg, 2500);
+}
+function sndCreditsAddUp() { /* TSBM handles its own audio */ }
+function opLog(obj) {
+  if (typeof logEvent === 'function') logEvent(obj.type || 'WALLET_EVENT', obj);
+}
+</script>
+<script src="wallet_module.js?v=8.2.6"></script>
+<script src="cashout.js?v=8.2.6"></script>
 
 <script>
 'use strict';
