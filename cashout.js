@@ -23,7 +23,7 @@ var CashOut = (function() {
     WalletUI.cashOut(function(ok) {
       if (typeof UI!=='undefined')
         UI.showToast('CASHED OUT $'+amt.toFixed(2)+(ok?' • SAVED TO WALLET':''),2500);
-      setTimeout(function(){ window.location.href=_lobbyUrl(); },2200);
+      /* Cash out saved — player stays in game */
     });
   }
 
