@@ -294,7 +294,7 @@ var DEFAULT_CREDITS_PER_LINE = 10; // matches DENOM_CREDIT_LOCK[DEFAULT_DENOM=0.
 
 // Lines (unchanged)
 var DEFAULT_LINES   = 5;  // owner-confirmed 2026-05-18: minimum 5 lines, default start 5
-var DEFAULT_BALANCE = 500.00;
+var DEFAULT_BALANCE = 0.00;  /* v8.3.2: start at $0, funded from wallet */
 
 // Legacy — kept for compatibility with existing code that references BET_INCREMENTS
 // In MLMC mode, actual bet = denom × creditsPerLine × lines

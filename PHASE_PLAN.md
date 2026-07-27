@@ -102,3 +102,60 @@ This is the first PHASE_PLAN entry for this repo (created v8.2.2).
 - Reel sums: unchanged (no reel changes this build)
 - Critical element IDs: cashout-btn, insertcash-btn, exit-btn, voucher-modal,
   wallet-modal, create-voucher-modal all present in index.html DOM: PASS
+
+---
+
+### v8.3.6 (cache turrelle-v8.3.6) — Full audit, tap hardening, error surfacing
+
+Follows the run of fixes v8.3.0 -> v8.3.5. Operator force-triggers are TEST
+ONLY: every rule below describes independent gameplay with no operator input.
+
+#### Standing rules reaffirmed
+- CACHE BUST EVERY DELIVERY. Bump the version, then apply it to EVERY local
+  asset (js, css, images, audio, manifest), `GAME_VERSION`, SW `CACHE_NAME`
+  AND the SW `VER` const. Never reuse a shipped version. Verify all `?v=`
+  resolve to one value before packaging.
+- Class III. No bingo card, no ball caller.
+- Balance is funded ONLY from the virtual wallet. The game never grants credits.
+- `cashout.js` must keep exporting `loadVouchers` — `index.html` calls it and a
+  missing export kills the init chain, rendering every reel cell empty.
+- The `$()` helper lives in `index.html`. Do not rewrite `$()` call sites.
+
+#### Changed this build
+- `game.js` — Red Spin catch now shows the real error text
+  (`Red Spin error: <message>`, 6s) instead of the generic "Red Spin ended",
+  which hid the fault and made it look like an unexplained freeze.
+- `index.html` — new `_bindTap(el, label, handler)` binds BOTH `click` and
+  `pointerup` with a 350 ms de-dupe. SPIN, BET MAX and SELECT LINES all use it.
+  Samsung Browser drops `click` on some builds; this makes a tap always
+  register. Each binding and firing logs to console (`[tap] ...`) so a dead
+  button can be diagnosed on-device.
+- `index.html` — global `error` and `unhandledrejection` handlers. Both toast
+  the message; the rejection handler also clears `spinInProgress` / `activeBonus`
+  and re-enables controls, so an async throw can no longer leave the game frozen.
+
+#### Audit results (this build)
+- `node --check` every runtime .js: PASS (12 files)
+- All 9 inline `<script>` blocks parse: PASS
+- Every `UI.*` call resolves to a UI export: PASS (45 exports)
+- Every `Audio.*` call resolves to an Audio export: PASS
+- Every `CashOut.*` call resolves to a cashout.js export: PASS
+- Natural 5-Lipstick L1 trigger verified by sandbox execution: fires correctly
+- BET MAX handler body executed in sandbox: no throw
+  (creditsPerLine 10, lines 20, total bet $10.00 at 5c)
+
+#### Open findings — NOT changed, awaiting owner decision
+- `Audio.play('credit_sweep')` in cashout.js: the key `credit_sweep` appears
+  nowhere in audio.js. Silent no-op on cash out.
+- `wabc.js` is still loaded by index.html. Per this plan's own header it is not
+  part of the Class III flow. Dead weight on every load.
+- Unreferenced media: `assets/videos/josie_dance.mp4`, `sasha_dance.mp4`,
+  `sasha_alt.mp4`. Not referenced by any JS/CSS/HTML.
+- Uncalled functions: `closeLogScreen` (operator.js); `_formatCoinAmt`,
+  `startInsertCashTicker`, `stopInsertCashTicker` (ui.js).
+- Orphan DOM ids referenced in JS but absent from the DOM (each is null-guarded,
+  so they are silent no-ops rather than crashes): `lines-display`,
+  `total-bet-val`, `rs-tier-banner`, `prog-meter-lbl`, `broadcast-toast`,
+  `help-music-btn`, `help-sfx-btn`, `help-vol-slider`, and the `op-*` set
+  (`op-bal`, `op-bfreq`, `op-close`, `op-hold`, `op-jpct`, `op-maxwin`,
+  `op-rtp`, `op-theoretical-rtp`).

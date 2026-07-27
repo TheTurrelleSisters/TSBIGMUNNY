@@ -37,6 +37,16 @@ var WalletUI = (function () {
   };
 
   /* ── Helpers ── */
+  var NICK_LS = 'gcc_player_nick';
+  /* Standalone launches have no ?player= param — restore a previously
+     entered nickname so the wallet keeps working across sessions. */
+  (function _seedNick(){
+    if (window._playerNickname) return;
+    try {
+      var saved = localStorage.getItem(NICK_LS);
+      if (saved && saved.length >= 2) window._playerNickname = saved;
+    } catch(e) {}
+  }());
   function nick()  { return ((window._playerNickname||'')).toLowerCase().trim(); }
   function slug()  { return (typeof PROG_GAME_ID !== 'undefined') ? PROG_GAME_ID : 'unknown'; }
   function fmt(v)  { var n=parseFloat(v);if(isNaN(n)||n<0)n=0;return '$'+n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
@@ -157,6 +167,12 @@ var WalletUI = (function () {
           '<div id="wov-bal-nick"></div>',
         '</div>',
         '<div id="wov-divider"></div>',
+        '<div id="wov-nick-prompt">',
+          '<div id="wov-nick-msg">Enter a nickname to use your wallet</div>',
+          '<input id="wov-nick-input" type="text" maxlength="16" placeholder="Your nickname" autocomplete="off">',
+          '<button id="wov-nick-save">SAVE NICKNAME</button>',
+          '<div id="wov-nick-err"></div>',
+        '</div>',
         '<div id="wov-presets-lbl">QUICK LOAD</div>',
         '<div id="wov-presets">',
           PRESETS.map(function(p){
@@ -232,6 +248,15 @@ var WalletUI = (function () {
         'background:rgba(8,0,15,.96);-webkit-align-items:center;align-items:center;',
         '-webkit-justify-content:center;justify-content:center;}',
       '#wov-saving.on{display:-webkit-flex;display:flex;}',
+      '#wov-nick-prompt{display:none;padding:4px 0 14px;text-align:center;}',
+      '#wov-nick-msg{font-size:13px;color:#f5c842;letter-spacing:1px;margin-bottom:10px;font-family:Arial,sans-serif;}',
+      '#wov-nick-input{width:82%;padding:12px 10px;border-radius:10px;border:1.5px solid rgba(245,200,66,.45);',
+        'background:rgba(255,255,255,.06);color:#fff;font-size:16px;text-align:center;font-family:Arial,sans-serif;',
+        '-webkit-appearance:none;appearance:none;box-sizing:border-box;}',
+      '#wov-nick-save{margin-top:10px;width:82%;padding:12px 0;border-radius:10px;border:1.5px solid rgba(29,185,84,.5);',
+        'background:rgba(29,185,84,.14);color:#1db954;font-size:14px;font-weight:900;',
+        'font-family:"Arial Black",Arial,sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent;}',
+      '#wov-nick-err{min-height:16px;margin-top:8px;font-size:12px;color:#ff5c7a;font-family:Arial,sans-serif;}',
       '#wov-saving-inner{text-align:center;}',
       '#wov-saving-icon{font-size:48px;margin-bottom:16px;}',
       '#wov-saving-msg{font-size:22px;font-weight:900;color:#f5c842;letter-spacing:3px;',
@@ -248,6 +273,14 @@ var WalletUI = (function () {
     if (closeBtn) closeBtn.addEventListener('click', close);
     if (backdrop) backdrop.addEventListener('click', close);
 
+    /* Nickname prompt */
+    var nickSave = el('wov-nick-save');
+    if (nickSave) nickSave.addEventListener('click', _saveNick);
+    var nickInput = el('wov-nick-input');
+    if (nickInput) nickInput.addEventListener('keydown', function(e){
+      if (e.keyCode === 13) { e.preventDefault(); _saveNick(); }
+    });
+
     /* Preset buttons */
     var presetBtns = document.querySelectorAll('.wov-preset-btn');
     for (var i=0; i<presetBtns.length; i++) {
@@ -261,29 +294,49 @@ var WalletUI = (function () {
   }
 
   /* ── Open wallet overlay ── */
-  function open() {
-    _ensureOverlay();
-    var wrap = el('wov-wrap');
-    if (wrap) wrap.classList.add('open');
-
-    /* Show nickname */
+  /* Paint the nickname line. */
+  function _renderNick() {
     var nickEl = el('wov-bal-nick');
     if (nickEl) nickEl.textContent = window._playerNickname
       ? ('\u2605 ' + window._playerNickname) : '';
+  }
 
-    /* Load balance */
+  /* Fetch balance + vouchers and paint them. Safe to call when the
+     overlay is closed — every write is guarded on the element existing. */
+  function loadWallet() {
+    if (!nick()) return;
+    _renderNick();
+
     var balEl = el('wov-bal-amt');
-    if (balEl) balEl.textContent = '$0.00';
     _loadBal(function(bal) {
-      if (balEl) balEl.textContent = fmt(bal);
+      var b = el('wov-bal-amt');
+      if (b) b.textContent = fmt(bal);
     });
 
-    /* Load vouchers */
     var listEl = el('wov-list');
     if (listEl) listEl.innerHTML = '<div id="wov-list-loading">Loading\u2026</div>';
     _loadVouchers(function(vouchers) {
       _renderVouchers(vouchers);
     });
+  }
+
+  function open() {
+    _ensureOverlay();
+    var wrap = el('wov-wrap');
+    if (wrap) wrap.classList.add('open');
+    if (!nick()) { _showNickPrompt(); } else { _hideNickPrompt(); }
+
+    _renderNick();
+
+    var balEl = el('wov-bal-amt');
+    if (balEl) balEl.textContent = '$0.00';
+
+    if (nick()) {
+      loadWallet();
+    } else {
+      var listEl = el('wov-list');
+      if (listEl) listEl.innerHTML = '';
+    }
   }
 
   function close() {
@@ -398,8 +451,39 @@ var WalletUI = (function () {
     for (var i=0; i<btns.length; i++) btns[i].disabled = disabled;
   }
 
-  function _noNickToast() {
-    if (typeof toast === 'function') toast('Return to lobby to set your nickname');
+  /* Show the in-overlay nickname prompt. The old toast was invisible here
+     because the toast sits below the overlay in the stacking order. */
+  function _noNickToast() { _showNickPrompt(); }
+
+  function _showNickPrompt(msg) {
+    var wrap = el('wov-wrap');
+    if (wrap && wrap.classList) wrap.classList.add('open');
+    var box = el('wov-nick-prompt');
+    if (box) box.style.display = 'block';
+    var pr = el('wov-presets');      if (pr) pr.style.display = 'none';
+    var pl = el('wov-presets-lbl');  if (pl) pl.style.display = 'none';
+    var er = el('wov-nick-err');     if (er) er.textContent = msg || '';
+    var inp = el('wov-nick-input');
+    if (inp) { try { inp.focus(); } catch(e) {} }
+  }
+
+  function _hideNickPrompt() {
+    var box = el('wov-nick-prompt');
+    if (box) box.style.display = 'none';
+    var pr = el('wov-presets');      if (pr) pr.style.display = '';
+    var pl = el('wov-presets-lbl');  if (pl) pl.style.display = '';
+  }
+
+  function _saveNick() {
+    var inp = el('wov-nick-input');
+    var raw = inp ? (inp.value || '') : '';
+    var v   = raw.replace(/[^A-Za-z0-9 _-]/g, '').trim().substring(0, 16);
+    if (v.length < 2) { _showNickPrompt('Please enter at least 2 characters.'); return; }
+    window._playerNickname = v;
+    try { localStorage.setItem(NICK_LS, v); } catch(e) {}
+    _hideNickPrompt();
+    _renderNick();
+    loadWallet();
   }
 
   /* ══════════════════════════════════════════

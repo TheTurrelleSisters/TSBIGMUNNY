@@ -1,7 +1,7 @@
 'use strict';
 /**
  * cashout.js — The Turrelle Sisters Big Munny
- * v8.2.4 — delegates to WalletUI (wallet_module.js)
+ * v8.2.9 — delegates to WalletUI (wallet_module.js)
  */
 var CashOut = (function() {
   var LOBBY_URL = 'https://theturrellesisters.github.io/turrelle_gold_coins_casino/';
@@ -76,10 +76,16 @@ var CashOut = (function() {
     try { localStorage.removeItem('turrelleSisters_vouchers_v1'); } catch(e){}
   }
 
+  /* loadVouchers: legacy API kept for game.js compatibility.
+     Vouchers are now in Supabase — return [] so the startup balance
+     restore logic works correctly (no localStorage vouchers = restore balance). */
+  function loadVouchers() { return []; }
+
   return {
     init:init, doCashOut:doCashOut, doInsertCash:doInsertCash, doExit:doExit,
     doCashOutAmount:doCashOutAmount, checkZeroBalance:checkZeroBalance,
     startZeroBalanceFlash:startZeroBalanceFlash, stopZeroBalanceFlash:stopZeroBalanceFlash,
     clearAllVouchers:clearAllVouchers,
+    loadVouchers:loadVouchers,
   };
 }());

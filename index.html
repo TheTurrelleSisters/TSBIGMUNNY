@@ -11,7 +11,7 @@
     // MANDATORY RULE: Update GAME_VERSION on every build alongside CACHE_NAME.
     // This is displayed on the splash screen and used for cache validation.
     // Never deliver a zip with a stale GAME_VERSION.
-    var GAME_VERSION = 'v8.2.8';
+    var GAME_VERSION = 'v8.3.6';
 
     // ── SPIN LOCK SAFETY NET ──────────────────────────────────────────
     // If executeSpin() throws an uncaught promise rejection, spinInProgress
@@ -84,7 +84,7 @@
 <meta name="format-detection" content="telephone=no">
 <title>The Turrelle Sisters Big Munny</title>
 <link rel="icon" href="assets/icons/icon-96x96.png">
-<link rel="stylesheet" href="style.css?v=8.2.8">
+<link rel="stylesheet" href="style.css?v=8.3.6">
 <style>
 /* ── INSERT CASH TO PLAY — reel overlay msg ── */
 #reels-insert-msg {
@@ -305,7 +305,7 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 
   <!-- WIN DISPLAY -->
   <div id="win-section">
-    <div id="balance-box"><div id="balance-label">BALANCE</div><div id="balance-val">$500.00</div></div>
+    <div id="balance-box"><div id="balance-label">BALANCE</div><div id="balance-val">$0.00</div></div>
     <div id="win-box"><div id="win-label">WIN</div><div id="win-amount">$0.00</div></div>
     <div id="bonus-total-box"><div id="bonus-total-label">🔴 BONUS TOTAL</div><div id="bonus-total-amount">$0.00</div></div>
   </div>
@@ -549,6 +549,27 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
   var PROG_DENOM   = 1.00;
 </script>
 <script>
+/* v8.3.6: surface uncaught errors — previously a throw anywhere in the spin
+   chain left the game visibly frozen with no explanation. */
+window.addEventListener('error', function(e) {
+  try {
+    var m = (e && e.message) ? String(e.message).substring(0, 90) : 'unknown';
+    console.error('[uncaught]', e && e.error ? e.error : m);
+    if (typeof UI !== 'undefined' && UI.showToast) UI.showToast('Error: ' + m, 6000);
+  } catch(_) {}
+});
+window.addEventListener('unhandledrejection', function(e) {
+  try {
+    var r = e && e.reason;
+    var m = (r && r.message) ? String(r.message).substring(0, 90) : String(r).substring(0, 90);
+    console.error('[unhandled promise]', r);
+    if (typeof UI !== 'undefined' && UI.showToast) UI.showToast('Error: ' + m, 6000);
+    if (typeof GameState !== 'undefined') { GameState.spinInProgress = false; GameState.activeBonus = null; }
+    if (typeof UI !== 'undefined' && UI.setControlsEnabled) UI.setControlsEnabled(true);
+  } catch(_) {}
+});
+</script>
+<script>
 /* ── TSBM Startup Recovery (v8.2.7) ──
    Clears stuck spinInProgress flag from localStorage on every load.
    Prevents blank reels caused by a previous crash or force-close. */
@@ -567,16 +588,16 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
   } catch(e) {}
 }());
 </script>
-<script src="progressive.js?v=1.5"></script>
-<script src="wabc.js?v=1.0"></script>
-<script src="broadcast-init.js?v=1.1"></script>
-<script src="paytable.js?v=8.2.8"></script>
-<script src="state.js?v=8.2.8"></script>
-<script src="audio.js?v=8.2.8"></script>
-<script src="game.js?v=8.2.8"></script>
-<script src="bonuses.js?v=8.2.8"></script>
-<script src="ui.js?v=8.2.8"></script>
-<script src="operator.js?v=8.2.8"></script>
+<script src="progressive.js?v=8.3.6"></script>
+<script src="wabc.js?v=8.3.6"></script>
+<script src="broadcast-init.js?v=8.3.6"></script>
+<script src="paytable.js?v=8.3.6"></script>
+<script src="state.js?v=8.3.6"></script>
+<script src="audio.js?v=8.3.6"></script>
+<script src="game.js?v=8.3.6"></script>
+<script src="bonuses.js?v=8.3.6"></script>
+<script src="ui.js?v=8.3.6"></script>
+<script src="operator.js?v=8.3.6"></script>
 <script>
 /* ── WalletUI compatibility shim for TSBM (v8.2.7) ──
    wallet_module.js expects S.bal, updUI(), toast(), opLog(), sndCreditsAddUp().
@@ -610,8 +631,8 @@ function opLog(obj) {
   if (typeof logEvent === 'function') logEvent(obj.type || 'WALLET_EVENT', obj);
 }
 </script>
-<script src="wallet_module.js?v=8.2.8"></script>
-<script src="cashout.js?v=8.2.8"></script>
+<script src="wallet_module.js?v=8.3.6"></script>
+<script src="cashout.js?v=8.3.6"></script>
 
 <script>
 'use strict';
@@ -901,14 +922,12 @@ window.addEventListener('popstate', function(e) {
   // The duplicate declaration was resetting _wakeLock to null mid-IIFE, breaking the first implementation.
   // If balance is $0 and there are no redeemable vouchers, restore starting credits.
   // This prevents the game from being permanently stuck in an unplayable state.
+  /* v8.3.2: auto-restore of starting credits REMOVED.
+     Balance is funded exclusively from the virtual wallet (INSERT CASH).
+     The game must never grant credits on its own. */
   if (GameState.balance <= 0) {
-    var voucherList = CashOut.loadVouchers();
-  var hasVouchers = false;
-  for (var _vi=0;_vi<voucherList.length;_vi++){if(voucherList[_vi].status==='active'){hasVouchers=true;break;}}
-    if (!hasVouchers) {
-      GameState.balance = GameState.operator.startingBalance || DEFAULT_BALANCE;
-      saveState();
-    }
+    GameState.balance = 0;
+    saveState();
   }
 
   // v8.1.9 NEW-BUG-C FIX: Duplicate beforeunload/visibilitychange/pagehide listeners removed here.
@@ -1082,24 +1101,37 @@ window.addEventListener('popstate', function(e) {
   var _betOneBtn  = $('bet-one-btn');
   var _linesCycle = [5, 10, 15, 20];
   if (_betOneBtn) {
-    _betOneBtn.addEventListener('click', function() {
-      if (GameState.spinInProgress || GameState.activeBonus) return;
-      var idx = _linesCycle.indexOf(lines);
-      lines = _linesCycle[(idx + 1) % _linesCycle.length];
-      applyScaledJackpotSeeds(denom, lines);
-      UI.updateJackpotMeters();
-      updateBetLine(); Audio.play('button_click');
-      // Show active payline patterns on reel grid
-      if (typeof UI !== 'undefined' && UI.showActivePaylines) UI.showActivePaylines(lines);
+    _bindTap(_betOneBtn, 'SELECT LINES', function() {
+      /* v8.3.4: matches SPIN / BET MAX — responds on the first tap even while
+         the previous spin's win animations are still playing. */
+      if (GameState.activeBonus) return;
+      Audio.play('button_click');
+      _whenIdle(function() {
+        if (GameState.activeBonus) return;
+        var idx = _linesCycle.indexOf(lines);
+        lines = _linesCycle[(idx + 1) % _linesCycle.length];
+        applyScaledJackpotSeeds(denom, lines);
+        UI.updateJackpotMeters();
+        updateBetLine();
+        // Show active payline patterns on reel grid
+        if (typeof UI !== 'undefined' && UI.showActivePaylines) UI.showActivePaylines(lines);
+      });
     });
   }
   var _betMaxBtn = $('bet-max-btn');
-  if (_betMaxBtn) _betMaxBtn.addEventListener('click', function() {
-    if (GameState.spinInProgress || GameState.activeBonus) return;
-    creditsPerLine = (typeof DENOM_CREDIT_LOCK !== 'undefined' && DENOM_CREDIT_LOCK[denom]) ? DENOM_CREDIT_LOCK[denom] : 5; lines = 20;
-    applyScaledJackpotSeeds(denom, lines);
-    UI.updateJackpotMeters();
-    updateBetLine(); Audio.play('button_click');
+  _bindTap(_betMaxBtn, 'BET MAX', function() {
+    /* v8.3.4: was silently ignored while the previous spin's animations were
+       still running. Now behaves like SPIN — clears them, then applies. */
+    if (GameState.activeBonus) return;
+    Audio.play('button_click');
+    _whenIdle(function() {
+      if (GameState.activeBonus) return;
+      creditsPerLine = (typeof DENOM_CREDIT_LOCK !== 'undefined' && DENOM_CREDIT_LOCK[denom]) ? DENOM_CREDIT_LOCK[denom] : 5;
+      lines = 20;
+      applyScaledJackpotSeeds(denom, lines);
+      UI.updateJackpotMeters();
+      updateBetLine();
+    });
   });
 
   // ── DENOM DROPDOWN ────────────────────────────────────────────────
@@ -1158,30 +1190,60 @@ window.addEventListener('popstate', function(e) {
   // v7.0.6: audio plays on EVERY tap (was silent on skip-tap)
   var _animationsSkipped = false;
 
-  var _sb=$('spin-btn'); if(_sb) _sb.addEventListener('click', function() {
+  /* v8.3.4: SINGLE-TAP rule (was 2-tap).
+     One tap always spins. If the previous spin's win animations are still
+     running, the same tap clears them first and then starts the next spin. */
+  function _skipRunningAnimations() {
+    var skipped = false;
+    if (UI.isAnimatingCredits) { UI.skipCreditAnimation(); skipped = true; }
+    if (GameState.spinInProgress) {
+      if (typeof setSkipPaylineAnimations !== 'undefined') setSkipPaylineAnimations(true);
+      skipped = true;
+    }
+    return skipped;
+  }
+
+  /* Clear any running animations, then run cb() once the game is idle.
+     Polls briefly because skipping resolves asynchronously. Caps out so a
+     stuck flag can never wedge the button permanently. */
+  /* v8.3.6: Samsung Browser can swallow synthetic 'click' on some builds.
+     Bind click + pointerup and de-duplicate, so a tap always registers.
+     Logs to console so a dead button can be diagnosed from the device. */
+  function _bindTap(el, label, handler) {
+    if (!el) { console.warn('[tap] MISSING ELEMENT: ' + label); return; }
+    var last = 0;
+    function fire(ev) {
+      var now = Date.now();
+      if (now - last < 350) return;   /* de-dupe click+pointerup pair */
+      last = now;
+      console.log('[tap] ' + label);
+      handler(ev);
+    }
+    el.addEventListener('click', fire);
+    el.addEventListener('pointerup', fire);
+    console.log('[tap] bound: ' + label);
+  }
+
+  function _whenIdle(cb) {
+    _skipRunningAnimations();
+    var tries = 0;
+    (function _wait() {
+      if (!GameState.spinInProgress && !UI.isAnimatingCredits) { cb(); return; }
+      if (++tries > 40) { cb(); return; }   /* ~2s safety cap */
+      setTimeout(_wait, 50);
+    }());
+  }
+
+  var _sb=$('spin-btn'); _bindTap(_sb, 'SPIN', function() {
     // Active bonus — ignore spin button
     if (GameState.activeBonus) return;
 
-    // Tap 1A: Credit countup animation → skip it
-    if (UI.isAnimatingCredits) {
-      Audio.play('button_click');
-      UI.skipCreditAnimation();
-      _animationsSkipped = true;
-      return;
-    }
-
-    // Tap 1B: Payline animations running → skip, show final result
-    // Audio plays here too — was silent before v7.0.6
-    if (GameState.spinInProgress) {
-      Audio.play('button_click');
-      if (typeof setSkipPaylineAnimations !== 'undefined') setSkipPaylineAnimations(true);
-      _animationsSkipped = true;
-      return;
-    }
-
-    // Spin is idle — start next spin
+    Audio.play('button_click');
     _animationsSkipped = false;
-    doSpin();
+    _whenIdle(function() {
+      if (GameState.activeBonus) return;
+      doSpin();
+    });
   });
 
   // v8.1.6: converted async→ES5 Promise chain (Rule 14 — no async/await in inline script blocks)

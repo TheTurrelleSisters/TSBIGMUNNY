@@ -466,6 +466,13 @@ async function executeSpin(betPerLine, linesActive, denom, creditsPerLine) {
     GameState.operator.forceBonusFeature = false;
     GameState.operator._forcedSpin = true;
     _unifiedBonus = 'BONUS_ORB';
+  } else if (result.scatterTriggered) {
+    // v8.3.5 FIX: 5 Lipsticks landed naturally on the center line (L1).
+    // Previously the RNG could still pick BONUS_ORB or RED_SPIN here, and those
+    // branches run `result.triggerPickChoose = false`, silently discarding the
+    // player's real on-reel trigger — the reels showed 5 Lipsticks and nothing
+    // happened. A natural trigger now always wins; no RNG bonus is chosen.
+    _unifiedBonus = null;
   } else {
     // Red Spin: winning spins only
     if (_isWinningSpin && rng.chance(_perBonusFreq)) {
@@ -698,7 +705,10 @@ async function executeSpin(betPerLine, linesActive, denom, creditsPerLine) {
         UI.deactivateRedScreen();
         UI.setControlsEnabled(true);
         // Only show toast if controls were actually locked (real error, not cleanup race)
-        if (redResult.totalWon === 0) UI.showToast('Red Spin ended');
+        // v8.3.6: surface the real cause. The generic message hid the fault and
+        // made the failure look like a plain crash with no explanation.
+        var _rsMsg = (rsErr && rsErr.message) ? String(rsErr.message).substring(0, 90) : 'unknown error';
+        if (redResult.totalWon === 0) UI.showToast('Red Spin error: ' + _rsMsg, 6000);
       }
     }
     totalWon += redResult.totalWon;

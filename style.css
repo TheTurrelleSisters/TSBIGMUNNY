@@ -473,7 +473,7 @@ overflow:hidden;
 #log-footer{padding:8px 15px;border-top:1px solid rgba(212,175,55,0.2);display:flex;gap:8px;background:#0a0408;flex-shrink:0;}
 
 /* ── TOAST ── */
-#toast{position:fixed;bottom:max(80px,env(safe-area-inset-bottom,0px) + 80px);left:50%;transform:translateX(-50%) translateY(20px);background:rgba(212,175,55,0.96);color:#0a0608;padding:9px 20px;border-radius:25px;font-weight:900;font-size:12px;opacity:0;transition:all 0.3s;z-index:200;pointer-events:none;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis;}
+#toast{position:fixed;bottom:max(80px,env(safe-area-inset-bottom,0px) + 80px);left:50%;transform:translateX(-50%) translateY(20px);background:rgba(212,175,55,0.96);color:#0a0608;padding:9px 20px;border-radius:25px;font-weight:900;font-size:12px;opacity:0;transition:all 0.3s;z-index:700;pointer-events:none;white-space:nowrap;max-width:92vw;overflow:hidden;text-overflow:ellipsis;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 /* #replay-banner removed v6l52 */
 

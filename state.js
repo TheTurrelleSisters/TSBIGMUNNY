@@ -58,7 +58,7 @@ var GameState = {
     redSpinFrequency:         RED_SPIN_FREQUENCY_DEFAULT,
     // bonusFeatureFrequency removed v6l100 — BONUS orb triggers via bottom-row letters only, no RNG shortcut.
     maxWinPerSpin:            0,
-    startingBalance:          DEFAULT_BALANCE,
+    startingBalance:          0.00,
     panelOpen:                false,
     comboArmed:               false,
     comboBonus:               'red_spin',

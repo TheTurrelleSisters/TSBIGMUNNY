@@ -5,15 +5,16 @@
  * Bump CACHE_NAME on every build that changes any cached file.
  */
 
-const CACHE_NAME  = 'turrelle-v8.2.8';
-const VER = '?v=8.1.64'; // must always match CACHE_NAME suffix
+const CACHE_NAME  = 'turrelle-v8.3.6';
+const VER = '?v=8.3.6'; // must always match CACHE_NAME suffix
 const CACHE_FILES = [
   './', './index.html',
   './style.css' + VER,
   './wabc.js',
   './paytable.js' + VER, './state.js' + VER, './audio.js' + VER,
   './game.js' + VER, './bonuses.js' + VER, './ui.js' + VER,
-  './operator.js' + VER, './cashout.js' + VER,
+  './operator.js' + VER, './cashout.js',
+  './wallet_module.js' + VER,
   './manifest.json',
   './assets/splash_screen.jpg',
   './assets/sisters_celebrate.png',
@@ -26,9 +27,7 @@ const CACHE_FILES = [
   './assets/sisters.png',
   './assets/symbols/seven.svg',
   './assets/symbols/lipstick.svg', './assets/symbols/dollar_bills.svg',
-  './assets/symbols/jp_mini.svg', './assets/symbols/jp_minor.svg',
-  './assets/symbols/jp_major.svg', './assets/symbols/jp_grand.svg',
-  './assets/symbols/single_bar.svg', './assets/symbols/double_bar.svg',
+  ,   ,   './assets/symbols/single_bar.svg', './assets/symbols/double_bar.svg',
   './assets/symbols/triple_bar.svg', './assets/symbols/diamond.svg',
   './assets/symbols/letter_b.svg',
   './assets/symbols/letter_o.svg',
