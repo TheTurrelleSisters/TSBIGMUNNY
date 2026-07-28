@@ -202,9 +202,9 @@ var WalletUI = (function () {
     var s = document.createElement('style');
     s.id = 'wov-styles';
     s.textContent = [
-      '#wov-wrap{display:none;position:fixed;inset:0;z-index:500;}',
+      '#wov-wrap{display:none;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:500;}',
       '#wov-wrap.open{display:block;}',
-      '#wov-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.72);}',
+      '#wov-backdrop{position:absolute;top:0;right:0;bottom:0;left:0;inset:0;background:rgba(0,0,0,.72);}',
       '#wov-sheet{',
         'position:absolute;bottom:0;left:0;right:0;',
         'max-width:500px;margin:0 auto;',
@@ -244,7 +244,7 @@ var WalletUI = (function () {
       '.wov-v-tap{font-size:9px;color:#1db954;letter-spacing:1px;font-family:Arial,sans-serif;margin-top:1px;}',
       '.wov-empty{text-align:center;padding:20px 0;color:#555a63;font-size:12px;font-family:Arial,sans-serif;line-height:1.7;}',
       /* Force-save overlay */
-      '#wov-saving{display:none;position:fixed;inset:0;z-index:600;',
+      '#wov-saving{display:none;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:600;',
         'background:rgba(8,0,15,.96);-webkit-align-items:center;align-items:center;',
         '-webkit-justify-content:center;justify-content:center;}',
       '#wov-saving.on{display:-webkit-flex;display:flex;}',

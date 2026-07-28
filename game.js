@@ -1,3 +1,43 @@
+
+/* ══════════════════════════════════════════════════════════════════════
+   v8.3.8: game_history reporting. TSBM was the ONLY game in the suite that
+   never wrote to game_history — player_registry and progressive were fine,
+   but operator reports had zero rows for 'turrelle'. Direct table insert,
+   matching the sister games (this is NOT an RPC).
+   ══════════════════════════════════════════════════════════════════════ */
+function _writeGameHistory(rec) {
+  try {
+    if (typeof Progressive === 'undefined' || !Progressive.isConnected()) return;
+    var _client = window._floorSupabaseClient;
+    if (!_client) return;
+    var row = {
+      game_id:        (typeof PROG_GAME_ID !== 'undefined') ? PROG_GAME_ID : 'turrelle',
+      game_title:     'The Turrelle Sisters Big Munny',
+      denom:          (typeof PROG_DENOM !== 'undefined') ? PROG_DENOM : 1,
+      event_type:     rec.type || 'SPIN',
+      game_serial:    (rec.gameSerial !== undefined && rec.gameSerial !== null) ? String(rec.gameSerial) : null,
+      card_serial:    null,
+      session_key:    (Progressive.getSessionKey) ? Progressive.getSessionKey() : null,
+      nickname:       window._playerNickname || null,
+      bet:            parseFloat(rec.bet) || 0,
+      win:            parseFloat(rec.win) || 0,
+      bal_before:     parseFloat(rec.balBefore) || 0,
+      bal_after:      parseFloat(rec.balAfter) || 0,
+      patterns:       (rec.patterns && rec.patterns.length) ? rec.patterns : [],
+      balls_to_win:   0,
+      is_progressive: rec.isProgressive || false,
+      prog_amount:    rec.progAmount || null,
+      archived:       false
+    };
+    if (rec.type === 'CASH_IN')  { row.bet = parseFloat(rec.amount) || 0; row.win = 0; }
+    if (rec.type === 'CASH_OUT') { row.win = parseFloat(rec.amount) || 0; row.bet = 0; }
+    _client.from('game_history').insert(row).then(function(res) {
+      if (res && res.error) console.warn('[GameHistory] insert FAILED:', res.error.message);
+    });
+  } catch(e) { console.warn('[GameHistory] threw:', e && e.message); }
+}
+window._writeGameHistory = _writeGameHistory;
+
 'use strict';
 /**
  * game.js — The Turrelle Sisters Big Munny v10
@@ -817,6 +857,21 @@ async function executeSpin(betPerLine, linesActive, denom, creditsPerLine) {
   }
 
   finalizeGameRecord(summary);
+
+  /* v8.3.8: report the spin. Runs AFTER the balance is credited, so
+     bal_after includes the win (the bug the sister game hit in v1.1.11). */
+  _writeGameHistory({
+    type:           'SPIN',
+    gameSerial:     _currentSpinSerial,
+    bet:            totalBet,
+    win:            totalWon,
+    balBefore:      summary.balanceBefore,
+    balAfter:       summary.balanceAfter,
+    patterns:       summary.bonusesTriggered,
+    isProgressive:  !!(result && result.progressiveWin),
+    progAmount:     (result && result.progressiveWin) ? result.progressiveWin : null
+  });
+
   saveState();
 
   if (typeof UI !== 'undefined') { UI.updateBalance(GameState.balance); UI.onSpinComplete(summary); }

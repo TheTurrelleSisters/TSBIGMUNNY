@@ -18,6 +18,8 @@ var CashOut = (function() {
     if (amt<=0) { UI.showToast('No credits to cash out.'); return; }
     GameState.balance=0; saveState();
     logEvent('CASH_OUT',{bonusType:'CASH_OUT',amount:amt,balanceAfter:0});
+    if (typeof _writeGameHistory === 'function')
+      _writeGameHistory({ type:'CASH_OUT', amount:amt, balBefore:amt, balAfter:0 });
     if (typeof UI!=='undefined') UI.updateBalance(0);
     if (typeof Audio!=='undefined') Audio.play('credit_sweep');
     WalletUI.cashOut(function(ok) {

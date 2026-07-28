@@ -11,7 +11,7 @@
     // MANDATORY RULE: Update GAME_VERSION on every build alongside CACHE_NAME.
     // This is displayed on the splash screen and used for cache validation.
     // Never deliver a zip with a stale GAME_VERSION.
-    var GAME_VERSION = 'v8.3.6';
+    var GAME_VERSION = 'v8.3.8';
 
     // ── SPIN LOCK SAFETY NET ──────────────────────────────────────────
     // If executeSpin() throws an uncaught promise rejection, spinInProgress
@@ -84,7 +84,7 @@
 <meta name="format-detection" content="telephone=no">
 <title>The Turrelle Sisters Big Munny</title>
 <link rel="icon" href="assets/icons/icon-96x96.png">
-<link rel="stylesheet" href="style.css?v=8.3.6">
+<link rel="stylesheet" href="style.css?v=8.3.8">
 <style>
 /* ── INSERT CASH TO PLAY — reel overlay msg ── */
 #reels-insert-msg {
@@ -118,7 +118,7 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 * { -webkit-touch-callout: none; }
 /* ── SPLASH SCREEN ── */
 #splash-screen{
-  position:fixed;inset:0;z-index:1000;
+  position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:1000;
   background:#0a0608;
   display:flex;flex-direction:column;
   align-items:stretch;justify-content:flex-start;
@@ -156,7 +156,7 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 }
 
 #splash-glow{
-  position:absolute;inset:0;
+  position:absolute;top:0;right:0;bottom:0;left:0;inset:0;
   background:radial-gradient(ellipse at center,rgba(212,175,55,0.08) 0%,transparent 70%);
   -webkit-animation:splashGlow 2s ease-in-out infinite alternate;
   animation:splashGlow 2s ease-in-out infinite alternate;
@@ -193,7 +193,7 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 #splash-loading { display: none; } /* replaced by tap-to-play */
 
 #splash-particles{
-  position:absolute;inset:0;pointer-events:none;overflow:hidden;
+  position:absolute;top:0;right:0;bottom:0;left:0;inset:0;pointer-events:none;overflow:hidden;
 }
 .sp{
   position:absolute;
@@ -492,7 +492,7 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 </div>
 
 <!-- BONUS LETTER CELEBRATION (shows before orb screen) -->
-<div id="bonus-letter-celebrate" style="display:none;position:fixed;inset:0;z-index:120;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;gap:8px;">
+<div id="bonus-letter-celebrate" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:120;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;gap:8px;">
   <div class="bonus-cel-letter" data-letter="B">B</div>
   <div class="bonus-cel-letter" data-letter="O">O</div>
   <div class="bonus-cel-letter" data-letter="N">N</div>
@@ -501,7 +501,7 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 </div>
 
 <!-- BONUS FEATURE ORB SCREEN -->
-<div id="bonus-orb-screen" style="display:none;position:fixed;inset:0;z-index:115;background:radial-gradient(ellipse at center,#1a0d35 0%,#0a0608 100%);flex-direction:column;align-items:center;justify-content:center;padding:20px;">
+<div id="bonus-orb-screen" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:115;background:radial-gradient(ellipse at center,#1a0d35 0%,#0a0608 100%);flex-direction:column;align-items:center;justify-content:center;padding:20px;">
   <div id="bonus-orb-header">
     <div id="bonus-orb-title">B-O-N-U-S!</div>
     <div id="bonus-orb-subtitle">TAP AN ORB TO REVEAL YOUR BONUS</div>
@@ -534,7 +534,7 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 </div>
 
 <!-- ADDITIONAL RED SPINS BANNER -->
-<div id="additional-rs-banner" style="display:none;position:fixed;inset:0;z-index:125;background:rgba(180,0,0,0.85);align-items:center;justify-content:center;flex-direction:column;pointer-events:none;">
+<div id="additional-rs-banner" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:125;background:rgba(180,0,0,0.85);align-items:center;justify-content:center;flex-direction:column;pointer-events:none;">
   <div id="additional-rs-text">ADDITIONAL RED SPINS WON!</div>
   <div id="additional-rs-sub">Get Ready...</div>
   <div id="additional-rs-tap">Get Ready...</div>
@@ -549,7 +549,7 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
   var PROG_DENOM   = 1.00;
 </script>
 <script>
-/* v8.3.6: surface uncaught errors — previously a throw anywhere in the spin
+/* v8.3.7: surface uncaught errors — previously a throw anywhere in the spin
    chain left the game visibly frozen with no explanation. */
 window.addEventListener('error', function(e) {
   try {
@@ -588,16 +588,16 @@ window.addEventListener('unhandledrejection', function(e) {
   } catch(e) {}
 }());
 </script>
-<script src="progressive.js?v=8.3.6"></script>
-<script src="wabc.js?v=8.3.6"></script>
-<script src="broadcast-init.js?v=8.3.6"></script>
-<script src="paytable.js?v=8.3.6"></script>
-<script src="state.js?v=8.3.6"></script>
-<script src="audio.js?v=8.3.6"></script>
-<script src="game.js?v=8.3.6"></script>
-<script src="bonuses.js?v=8.3.6"></script>
-<script src="ui.js?v=8.3.6"></script>
-<script src="operator.js?v=8.3.6"></script>
+<script src="progressive.js?v=8.3.8"></script>
+<script src="wabc.js?v=8.3.8"></script>
+<script src="broadcast-init.js?v=8.3.8"></script>
+<script src="paytable.js?v=8.3.8"></script>
+<script src="state.js?v=8.3.8"></script>
+<script src="audio.js?v=8.3.8"></script>
+<script src="game.js?v=8.3.8"></script>
+<script src="bonuses.js?v=8.3.8"></script>
+<script src="ui.js?v=8.3.8"></script>
+<script src="operator.js?v=8.3.8"></script>
 <script>
 /* ── WalletUI compatibility shim for TSBM (v8.2.7) ──
    wallet_module.js expects S.bal, updUI(), toast(), opLog(), sndCreditsAddUp().
@@ -629,10 +629,19 @@ function toast(msg) {
 function sndCreditsAddUp() { /* TSBM handles its own audio */ }
 function opLog(obj) {
   if (typeof logEvent === 'function') logEvent(obj.type || 'WALLET_EVENT', obj);
+  /* v8.3.8: wallet credit loads were never reaching game_history. */
+  if (obj && obj.type === 'CASH_IN' && typeof window._writeGameHistory === 'function') {
+    window._writeGameHistory({
+      type:      'CASH_IN',
+      amount:    obj.amount,
+      balBefore: obj.balBefore,
+      balAfter:  obj.balAfter
+    });
+  }
 }
 </script>
-<script src="wallet_module.js?v=8.3.6"></script>
-<script src="cashout.js?v=8.3.6"></script>
+<script src="wallet_module.js?v=8.3.8"></script>
+<script src="cashout.js?v=8.3.8"></script>
 
 <script>
 'use strict';
@@ -1206,7 +1215,7 @@ window.addEventListener('popstate', function(e) {
   /* Clear any running animations, then run cb() once the game is idle.
      Polls briefly because skipping resolves asynchronously. Caps out so a
      stuck flag can never wedge the button permanently. */
-  /* v8.3.6: Samsung Browser can swallow synthetic 'click' on some builds.
+  /* v8.3.7: Samsung Browser can swallow synthetic 'click' on some builds.
      Bind click + pointerup and de-duplicate, so a tap always registers.
      Logs to console so a dead button can be diagnosed from the device. */
   function _bindTap(el, label, handler) {

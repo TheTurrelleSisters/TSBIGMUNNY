@@ -76,7 +76,7 @@ body{
   position:relative;
 }
 #jackpot-bar::before{
-  content:'';position:absolute;inset:0;
+  content:'';position:absolute;top:0;right:0;bottom:0;left:0;inset:0;
   background:linear-gradient(90deg,transparent 0%,rgba(201,153,58,0.04) 50%,transparent 100%);
   pointer-events:none;
 }
@@ -149,7 +149,7 @@ body{
 /* ── RED SPIN OVERLAY — inside reel-frame, ON TOP of reels ── */
 #red-reel-overlay{
   position:absolute;
-  inset:0;
+  top:0;right:0;bottom:0;left:0;inset:0;
   z-index:15;            /* above reels (z:0) but below frame edges (z:20) */
   border-radius:9px;
   background:transparent;
@@ -162,7 +162,7 @@ body{
 }
 #red-reel-overlay.active::after{
   content:'';
-  position:absolute;inset:0;border-radius:9px;
+  position:absolute;top:0;right:0;bottom:0;left:0;inset:0;border-radius:9px;
   background:radial-gradient(ellipse at center,transparent 15%,rgba(220,0,0,0.6) 100%);
   animation:redPulse 1.4s ease-in-out infinite;
   -webkit-animation:redPulse 1.4s ease-in-out infinite;
@@ -298,7 +298,7 @@ overflow:hidden;
 
 
 /* ── PICK & CHOOSE ── */
-#pick-screen{position:fixed;inset:0;background:linear-gradient(135deg,#060310,#0a0518,#060310);display:none;flex-direction:column;align-items:center;z-index:60;padding:10px;}
+#pick-screen{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;background:linear-gradient(135deg,#060310,#0a0518,#060310);display:none;flex-direction:column;align-items:center;z-index:60;padding:10px;}
 #pick-screen.active{display:flex;}
 /* ── P&C JP BAR — mirrors base game #jackpot-bar / .jp-meter exactly (v8.1.40 BUG-PC-1) ── */
 .bonus-jp-bar{display:flex;gap:4px;padding:5px 6px 4px;height:52px;min-height:48px;flex-shrink:0;width:100%;max-width:420px;background:linear-gradient(90deg,#0a0410,#160820,#0a0410);border-radius:6px;margin-bottom:4px;}
@@ -338,7 +338,7 @@ overflow:hidden;
 @-webkit-keyframes tileFlip {0%{transform:scaleX(1);}40%{transform:scaleX(0);}100%{transform:scaleX(1);}}
 
 /* ── JACKPOT ── */
-#jackpot-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.93);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;text-align:center;padding:20px;gap:6px;}
+#jackpot-overlay{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;background:rgba(0,0,0,0.93);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:100;text-align:center;padding:20px;gap:6px;}
 #jackpot-overlay.active{display:flex;flex-direction:column;align-items:center;justify-content:center;}
 #jackpot-type-text{font-family:var(--font-display);font-size:40px;font-weight:900;letter-spacing:3px;animation:jackpotPulse 0.65s ease-in-out infinite;}
 #jackpot-amount-text{font-family:var(--font-num);font-size:46px;font-weight:900;color:var(--gold-light);text-shadow:0 0 30px var(--gold);margin:12px 0;}
@@ -350,7 +350,7 @@ overflow:hidden;
 @-webkit-keyframes blink {0%,100%{opacity:1;}50%{opacity:0.3;}}\n@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
 
 /* ── OPERATOR / PIN / LOG ── */
-#op-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.96);display:none;z-index:90;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
+#op-overlay{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;background:rgba(0,0,0,0.96);display:none;z-index:90;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;}
 #op-overlay.active{display:block;}
 #op-panel{width:100%;max-width:480px;margin:0 auto;padding:10px;color:var(--text);box-sizing:border-box;}
 #op-header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--gold-dark);padding-bottom:8px;margin-bottom:10px;gap:4px;}
@@ -377,7 +377,7 @@ overflow:hidden;
 
 /* ── EXIT CONFIRMATION OVERLAY ── v8.1.50 */
 #exit-overlay{
-  position:fixed;inset:0;
+  position:fixed;top:0;right:0;bottom:0;left:0;inset:0;
   background:rgba(0,0,0,0.92);
   display:none;z-index:200;
   align-items:center;justify-content:center;
@@ -438,7 +438,7 @@ overflow:hidden;
 .op-rtp-stats{font-size:10px;line-height:1.8;color:var(--text-dim);}
 .op-rtp-stats span{color:var(--gold-light);font-family:var(--font-num);}
 .rtp-warn{color:#ff8080!important;}
-#pin-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.96);display:none;align-items:center;justify-content:center;z-index:95;}
+#pin-overlay{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;background:rgba(0,0,0,0.96);display:none;align-items:center;justify-content:center;z-index:95;}
 #pin-overlay.active{display:flex;}
 #pin-box{background:linear-gradient(135deg,#1a0d2e,#0d0818);border:2px solid var(--gold-dark);border-radius:16px;padding:25px;width:280px;text-align:center;}
 #pin-title{font-family:var(--font-display);color:var(--gold);font-size:16px;margin-bottom:5px;letter-spacing:2px;}
@@ -450,7 +450,7 @@ overflow:hidden;
 #pin-clear{background:rgba(155,27,48,0.2);border-color:var(--ruby);color:var(--ruby);}
 #pin-enter{background:rgba(212,175,55,0.2);border-color:var(--gold);color:var(--gold);}
 #pin-error{color:#ff6060;font-size:12px;margin-top:8px;min-height:18px;}
-#log-screen{position:fixed;inset:0;background:rgba(0,0,0,0.96);display:none;flex-direction:column;z-index:92;overflow:hidden;}
+#log-screen{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;background:rgba(0,0,0,0.96);display:none;flex-direction:column;z-index:92;overflow:hidden;}
 #log-screen.active{display:flex;}
 #log-header{padding:10px 15px;border-bottom:1px solid var(--gold-dark);display:flex;justify-content:space-between;align-items:center;background:#0d0510;flex-shrink:0;}
 #log-tabs{display:flex;gap:6px;padding:8px 15px;background:#0a0408;flex-shrink:0;}
@@ -514,7 +514,7 @@ body.desktop-gutter-c {
 body.desktop-gutter-b::before {
   content: '';
   position: fixed;
-  inset: 0;
+  top:0;right:0;bottom:0;left:0;inset:0;
   background: url('assets/splash_screen.jpg') center/cover no-repeat;
   filter: blur(18px) brightness(0.22) saturate(1.4);
   -webkit-filter: blur(18px) brightness(0.22) saturate(1.4);
@@ -598,7 +598,7 @@ body.desktop-gutter-b {
 
 /* ── VOUCHER MODAL ── */
 #voucher-modal{
-  position:fixed;inset:0;
+  position:fixed;top:0;right:0;bottom:0;left:0;inset:0;
   background:rgba(0,0,0,0.92);
   display:none;align-items:center;justify-content:center;
   z-index:120;padding:16px;
@@ -691,7 +691,7 @@ body.desktop-gutter-b {
 
 /* ── WALLET MODAL ── */
 #wallet-modal{
-  position:fixed;inset:0;
+  position:fixed;top:0;right:0;bottom:0;left:0;inset:0;
   background:rgba(0,0,0,0.92);
   display:none;align-items:center;justify-content:center;
   z-index:120;padding:16px;
@@ -885,7 +885,7 @@ body.desktop-gutter-b {
    PAYTABLE SCREEN
    ══════════════════════════════════════════════════════════════════════ */
 #paytable-screen, #help-screen {
-  position: fixed; inset: 0;
+  position: fixed; top:0;right:0;bottom:0;left:0;inset:0;
   background: rgba(0,0,0,0.97);
   display: none; align-items: flex-start; justify-content: center;
   z-index: 130; padding: 0;
@@ -976,7 +976,7 @@ body.desktop-gutter-b {
    CREATE VOUCHER MODAL
    ══════════════════════════════════════════════════════════════════════ */
 #create-voucher-modal {
-  position: fixed; inset: 0;
+  position: fixed; top:0;right:0;bottom:0;left:0;inset:0;
   background: rgba(0,0,0,0.92);
   display: none; align-items: center; justify-content: center;
   z-index: 135; padding: 20px;
@@ -1218,7 +1218,7 @@ body.desktop-gutter-b {
    BONUS FEATURE ORB SCREEN
    ══════════════════════════════════════════════════════════════════════ */
 #bonus-orb-screen {
-  position: fixed; inset: 0;
+  position: fixed; top:0;right:0;bottom:0;left:0;inset:0;
   background: radial-gradient(ellipse at center, #1a0d35 0%, #0a0608 100%);
   display: none;
   flex-direction: column;
@@ -1301,7 +1301,7 @@ body.desktop-gutter-b {
 }
 
 .orb-inner {
-  position: absolute; inset: 0;
+  position: absolute; top:0;right:0;bottom:0;left:0;inset:0;
   border-radius: 50%;
   background: radial-gradient(ellipse at 35% 30%, #4a3060, #1a0d35 50%, #0a0618);
   border: 3px solid var(--gold);
@@ -1830,7 +1830,7 @@ body.desktop-gutter-b {
    rs-bonus-win-overlay had zero CSS — overlay was invisible when .active added.
    ══════════════════════════════════════════════════════════════════════ */
 #rs-bonus-win-overlay {
-  position: fixed; inset: 0;
+  position: fixed; top:0;right:0;bottom:0;left:0;inset:0;
   background: rgba(18, 0, 0, 0.96);
   display: none;
   flex-direction: column;

@@ -5,8 +5,8 @@
  * Bump CACHE_NAME on every build that changes any cached file.
  */
 
-const CACHE_NAME  = 'turrelle-v8.3.6';
-const VER = '?v=8.3.6'; // must always match CACHE_NAME suffix
+const CACHE_NAME  = 'turrelle-v8.3.8';
+const VER = '?v=8.3.8'; // must always match CACHE_NAME suffix
 const CACHE_FILES = [
   './', './index.html',
   './style.css' + VER,
