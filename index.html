@@ -11,7 +11,7 @@
     // MANDATORY RULE: Update GAME_VERSION on every build alongside CACHE_NAME.
     // This is displayed on the splash screen and used for cache validation.
     // Never deliver a zip with a stale GAME_VERSION.
-    var GAME_VERSION = 'v8.3.8';
+    var GAME_VERSION = 'v8.4.1';
 
     // ── SPIN LOCK SAFETY NET ──────────────────────────────────────────
     // If executeSpin() throws an uncaught promise rejection, spinInProgress
@@ -84,7 +84,7 @@
 <meta name="format-detection" content="telephone=no">
 <title>The Turrelle Sisters Big Munny</title>
 <link rel="icon" href="assets/icons/icon-96x96.png">
-<link rel="stylesheet" href="style.css?v=8.3.8">
+<link rel="stylesheet" href="style.css?v=8.4.1">
 <style>
 /* ── INSERT CASH TO PLAY — reel overlay msg ── */
 #reels-insert-msg {
@@ -435,61 +435,6 @@ html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
   </div>
 </div>
 
-<!-- VOUCHER MODAL -->
-<div id="voucher-modal">
-  <div id="voucher-card">
-    <div id="vc-header">
-      <div id="vc-logo">🎰</div>
-      <div id="vm-casino">Lucky Bitches Casino</div>
-      <div id="vc-tagline">TICKET VOUCHER</div>
-    </div>
-    <div id="vc-body">
-      <div id="vc-thankyou">Thank You For Playing!</div>
-      <div id="vc-amount-label">CREDIT VALUE</div>
-      <div id="vm-amount">$0.00</div>
-      <div id="vm-barcode"></div>
-      <div id="vc-meta">
-        <div>Voucher #: <span id="vm-id">LBC-XXXX-XXXX</span></div>
-        <div>Serial: <span id="vm-serial">---------</span></div>
-        <div>Issued: <span id="vm-issued">--</span></div>
-      </div>
-      <div id="vc-disclaimer">⚠️ NOT REDEEMABLE FOR REAL CASH<br>For entertainment purposes only</div>
-    </div>
-    <div id="vc-footer">
-      <button id="vm-print">✓ SAVE TO WALLET</button>
-      <button id="vm-close">✕ CLOSE</button>
-    </div>
-  </div>
-</div>
-
-<!-- WALLET / INSERT CASH MODAL -->
-<div id="wallet-modal">
-  <div id="wallet-panel">
-    <div id="wallet-header">
-      <div id="wallet-title">💳 INSERT CASH</div>
-      <div id="wallet-subtitle">Select a voucher to play</div>
-    </div>
-    <div id="wallet-list"></div>
-    <div id="wallet-footer">
-      <button id="create-voucher-btn">➕ CREATE VOUCHER</button>
-      <button id="wallet-close">✕ CLOSE</button>
-    </div>
-  </div>
-</div>
-
-<!-- CREATE VOUCHER MODAL -->
-<div id="create-voucher-modal">
-  <div id="cv-panel">
-    <div id="cv-title">💳 CREATE VOUCHER</div>
-    <div id="cv-subtitle">Enter amount to add to wallet</div>
-    <input id="cv-amount-input" type="number" min="1" step="1" placeholder="Enter amount (e.g. 500)">
-    <div id="cv-error" style="display:none;color:#ff6060;font-size:11px;margin-top:4px;"></div>
-    <div id="cv-buttons">
-      <button id="cv-confirm">✓ CREATE</button>
-      <button id="cv-cancel">✕ CANCEL</button>
-    </div>
-  </div>
-</div>
 
 <!-- BONUS LETTER CELEBRATION (shows before orb screen) -->
 <div id="bonus-letter-celebrate" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;inset:0;z-index:120;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;gap:8px;">
@@ -588,16 +533,16 @@ window.addEventListener('unhandledrejection', function(e) {
   } catch(e) {}
 }());
 </script>
-<script src="progressive.js?v=8.3.8"></script>
-<script src="wabc.js?v=8.3.8"></script>
-<script src="broadcast-init.js?v=8.3.8"></script>
-<script src="paytable.js?v=8.3.8"></script>
-<script src="state.js?v=8.3.8"></script>
-<script src="audio.js?v=8.3.8"></script>
-<script src="game.js?v=8.3.8"></script>
-<script src="bonuses.js?v=8.3.8"></script>
-<script src="ui.js?v=8.3.8"></script>
-<script src="operator.js?v=8.3.8"></script>
+<script src="progressive.js?v=8.4.1"></script>
+<script src="wabc.js?v=8.4.1"></script>
+<script src="broadcast-init.js?v=8.4.1"></script>
+<script src="paytable.js?v=8.4.1"></script>
+<script src="state.js?v=8.4.1"></script>
+<script src="audio.js?v=8.4.1"></script>
+<script src="game.js?v=8.4.1"></script>
+<script src="bonuses.js?v=8.4.1"></script>
+<script src="ui.js?v=8.4.1"></script>
+<script src="operator.js?v=8.4.1"></script>
 <script>
 /* ── WalletUI compatibility shim for TSBM (v8.2.7) ──
    wallet_module.js expects S.bal, updUI(), toast(), opLog(), sndCreditsAddUp().
@@ -640,8 +585,8 @@ function opLog(obj) {
   }
 }
 </script>
-<script src="wallet_module.js?v=8.3.8"></script>
-<script src="cashout.js?v=8.3.8"></script>
+<script src="wallet_module.js?v=8.4.1"></script>
+<script src="cashout.js?v=8.4.1"></script>
 
 <script>
 'use strict';
@@ -1124,7 +1069,7 @@ window.addEventListener('popstate', function(e) {
         updateBetLine();
         // Show active payline patterns on reel grid
         if (typeof UI !== 'undefined' && UI.showActivePaylines) UI.showActivePaylines(lines);
-      });
+      }, 'lines');
     });
   }
   var _betMaxBtn = $('bet-max-btn');
@@ -1140,7 +1085,7 @@ window.addEventListener('popstate', function(e) {
       applyScaledJackpotSeeds(denom, lines);
       UI.updateJackpotMeters();
       updateBetLine();
-    });
+    }, 'betmax');
   });
 
   // ── DENOM DROPDOWN ────────────────────────────────────────────────
@@ -1223,7 +1168,7 @@ window.addEventListener('popstate', function(e) {
     var last = 0;
     function fire(ev) {
       var now = Date.now();
-      if (now - last < 350) return;   /* de-dupe click+pointerup pair */
+      if (now - last < 450) return;   /* v8.4.0: widened for slower devices */   /* de-dupe click+pointerup pair */
       last = now;
       console.log('[tap] ' + label);
       handler(ev);
@@ -1233,26 +1178,61 @@ window.addEventListener('popstate', function(e) {
     console.log('[tap] bound: ' + label);
   }
 
-  function _whenIdle(cb) {
+  /* v8.4.0: SINGLE-FLIGHT. Previously every tap started its own waiter, and
+     doSpin()'s internal guard only blocks while a spin is actually running —
+     so queued waiters each fired doSpin() as the previous spin ended and a
+     double tap produced 2, 3 or 4 spins. Now only one pending action per
+     control is allowed; extra taps while one is pending are ignored, not
+     queued. This does NOT bring back the old 2-tap rule: the first tap still
+     always acts. */
+  var _idlePending = {};
+  function _whenIdle(cb, key) {
+    key = key || 'default';
+    if (_idlePending[key]) { console.log('[tap] ignored — ' + key + ' already pending'); return; }
+    _idlePending[key] = true;
     _skipRunningAnimations();
     var tries = 0;
     (function _wait() {
-      if (!GameState.spinInProgress && !UI.isAnimatingCredits) { cb(); return; }
-      if (++tries > 40) { cb(); return; }   /* ~2s safety cap */
+      if (!GameState.spinInProgress && !UI.isAnimatingCredits) {
+        _idlePending[key] = false;
+        cb();
+        return;
+      }
+      if (++tries > 40) {                    /* ~2s safety cap */
+        _idlePending[key] = false;
+        cb();
+        return;
+      }
       setTimeout(_wait, 50);
     }());
   }
+
+  /* v8.4.0: spin cooldown. Single-flight alone was not enough — once the
+     first spin starts _idlePending clears, so a second tap could still queue
+     one more spin. A tap within SPIN_COOLDOWN_MS of the last accepted spin is
+     an accidental repeat and is dropped. Deliberate re-taps after the window
+     still work normally, and the FIRST tap is never delayed. */
+  var SPIN_COOLDOWN_MS = 650;
+  var _lastSpinAt = 0;
 
   var _sb=$('spin-btn'); _bindTap(_sb, 'SPIN', function() {
     // Active bonus — ignore spin button
     if (GameState.activeBonus) return;
 
+    var now = Date.now();
+    if (now - _lastSpinAt < SPIN_COOLDOWN_MS) {
+      console.log('[tap] SPIN ignored — cooldown (' + (now - _lastSpinAt) + 'ms)');
+      return;
+    }
+    _lastSpinAt = now;
+
     Audio.play('button_click');
     _animationsSkipped = false;
     _whenIdle(function() {
       if (GameState.activeBonus) return;
+      _lastSpinAt = Date.now();   /* restart window from the actual spin */
       doSpin();
-    });
+    }, 'spin');
   });
 
   // v8.1.6: converted async→ES5 Promise chain (Rule 14 — no async/await in inline script blocks)
@@ -1383,7 +1363,6 @@ window.addEventListener('popstate', function(e) {
   setInterval(function() { UI.updateJackpotMeters(); }, 4000);
 })();
 </script>
-
 
 
 <!-- ── RED SPIN BONUS WIN OVERLAY ─────────────────────────────────── -->

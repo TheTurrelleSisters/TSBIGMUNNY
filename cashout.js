@@ -68,8 +68,9 @@ var CashOut = (function() {
     var cb=document.getElementById('cashout-btn');   if(cb)  cb.addEventListener('click',doCashOut);
     var ib=document.getElementById('insertcash-btn');if(ib)  ib.addEventListener('click',doInsertCash);
     var eb=document.getElementById('exit-btn');      if(eb)  eb.addEventListener('click',doExit);
-    ['voucher-modal','wallet-modal','jackpot-overlay',
-     'pick-screen','op-overlay','pin-overlay','log-screen'].forEach(function(id){
+    /* v8.4.1: 'voucher-modal' and 'wallet-modal' dropped — the pre-Supabase
+       voucher-machine markup they referred to has been removed. */
+    ['jackpot-overlay','pick-screen','op-overlay','pin-overlay','log-screen'].forEach(function(id){
       var el=document.getElementById(id); if(el) el.classList.remove('active');
     });
   }

@@ -248,11 +248,9 @@ overflow:hidden;
 #bonus-total-label{font-size:8px;color:#ff6060;letter-spacing:1px;text-transform:uppercase;}
 #bonus-total-amount{font-family:var(--font-num);font-size:16px;font-weight:900;color:#ff8080;}
 
-
 #bonus-total-box.visible{display:flex;}
 #bonus-total-label{font-size:8px;color:#ff6060;letter-spacing:1px;text-transform:uppercase;}
 #bonus-total-amount{font-family:var(--font-num);font-size:16px;font-weight:900;color:#ff8080;}
-
 
 .info-label{font-size:7px;color:var(--text-dim);letter-spacing:2px;text-transform:uppercase;font-family:var(--font-display);}
 .info-value{font-family:var(--font-num);font-size:12px;color:var(--gold-light);font-weight:700;letter-spacing:0.5px;}
@@ -295,7 +293,6 @@ overflow:hidden;
 /* ═══════════════════════════════════════════════════════
    HOLD & SPIN BONUS SCREEN — Casino chip style
    ═══════════════════════════════════════════════════════ */
-
 
 /* ── PICK & CHOOSE ── */
 #pick-screen{position:fixed;top:0;right:0;bottom:0;left:0;inset:0;background:linear-gradient(135deg,#060310,#0a0518,#060310);display:none;flex-direction:column;align-items:center;z-index:60;padding:10px;}
@@ -479,7 +476,6 @@ overflow:hidden;
 
 /* #replay-watermark removed v6l52 */
 
-
 /* ── LANDSCAPE ── */
 /* ══════════════════════════════════════════════════════════════════════
    DESKTOP & TABLET LAYOUT (v7.0.5)
@@ -593,50 +589,10 @@ body.desktop-gutter-b {
   color:#40a0ff;
 }
 #insertcash-btn:active{transform:scale(0.95);}
-
-/* zero-balance-msg removed — reels-insert-msg handles this */
-
-/* ── VOUCHER MODAL ── */
-#voucher-modal{
-  position:fixed;top:0;right:0;bottom:0;left:0;inset:0;
-  background:rgba(0,0,0,0.92);
-  display:none;align-items:center;justify-content:center;
-  z-index:120;padding:16px;
-}
-#voucher-modal.active{display:flex;}
-
-#voucher-card{
-  background:#fff;
-  border-radius:14px;
-  width:100%;max-width:340px;
-  overflow:hidden;
-  box-shadow:0 8px 40px rgba(0,0,0,0.8);
-  font-family:var(--font-ui);
-}
-
-#vc-header{
-  background:linear-gradient(135deg,#1a0d2e,#2a1535);
-  padding:18px 16px 14px;
-  text-align:center;
-  border-bottom:4px solid var(--gold);
-}
-#vc-logo{font-size:30px;margin-bottom:4px;}
-#vm-casino{
-  font-family:var(--font-display);
-  font-size:18px;font-weight:900;
-  color:var(--gold-light);
-  text-shadow:0 0 12px var(--gold);
-  letter-spacing:1px;
-}
 #vc-tagline{
   font-size:11px;letter-spacing:3px;
   color:rgba(245,216,120,0.7);
   text-transform:uppercase;margin-top:3px;
-}
-
-#vc-body{
-  padding:18px 20px;text-align:center;
-  background:#f9f6f0;
 }
 #vc-thankyou{
   font-size:14px;font-weight:700;
@@ -646,85 +602,6 @@ body.desktop-gutter-b {
   font-size:10px;letter-spacing:2px;
   color:#888;text-transform:uppercase;
   margin-bottom:3px;
-}
-#vm-amount{
-  font-family:var(--font-num);
-  font-size:42px;font-weight:900;
-  color:#1a0d2e;
-  text-shadow:1px 1px 0 rgba(0,0,0,0.1);
-  margin-bottom:12px;
-}
-#vm-barcode{
-  margin:8px auto 10px;
-  background:#fff;
-  padding:4px;
-  border:1px solid #ddd;
-  border-radius:4px;
-  display:inline-block;
-}
-#vc-meta{
-  font-size:10px;color:#666;
-  line-height:1.8;margin:8px 0;
-  border-top:1px dashed #ccc;
-  border-bottom:1px dashed #ccc;
-  padding:6px 0;
-}
-#vc-meta span{font-weight:700;color:#333;font-family:monospace;}
-#vc-disclaimer{
-  font-size:9px;color:#999;
-  margin-top:8px;line-height:1.5;
-}
-
-#vc-footer{
-  display:flex;gap:8px;padding:12px 16px;
-  background:#f0ece4;
-  border-top:2px solid #ddd;
-}
-#vm-print,#vm-close{
-  flex:1;padding:10px;border-radius:8px;
-  font-size:12px;font-weight:700;cursor:pointer;transition:all 0.15s;
-}
-#vm-print{background:#1a0d2e;color:var(--gold);border:2px solid var(--gold);}
-#vm-print:active{transform:scale(0.96);}
-#vm-close{background:#eee;color:#666;border:2px solid #ddd;}
-#vm-close:active{transform:scale(0.96);}
-
-/* ── WALLET MODAL ── */
-#wallet-modal{
-  position:fixed;top:0;right:0;bottom:0;left:0;inset:0;
-  background:rgba(0,0,0,0.92);
-  display:none;align-items:center;justify-content:center;
-  z-index:120;padding:16px;
-}
-#wallet-modal.active{display:flex;}
-
-#wallet-panel{
-  background:linear-gradient(180deg,#1a0d2e,#0d0818);
-  border:2px solid var(--gold-dark);
-  border-radius:14px;
-  width:100%;max-width:380px;
-  max-height:80vh;
-  display:flex;flex-direction:column;
-  overflow:hidden;
-  box-shadow:0 8px 40px rgba(0,0,0,0.8);
-}
-
-#wallet-header{
-  padding:14px 16px 10px;
-  border-bottom:1px solid rgba(212,175,55,0.3);
-  text-align:center;flex-shrink:0;
-}
-#wallet-title{
-  font-family:var(--font-display);
-  font-size:18px;color:var(--gold-light);
-  text-shadow:0 0 12px var(--gold);
-  letter-spacing:2px;
-}
-#wallet-subtitle{font-size:11px;color:var(--text-dim);margin-top:2px;}
-
-#wallet-list{
-  flex:1;overflow-y:auto;
-  padding:10px 12px;
 }
 
 .wallet-row{
@@ -765,22 +642,6 @@ body.desktop-gutter-b {
   color:var(--text-dim);font-size:13px;line-height:1.8;
 }
 .wallet-empty span{font-size:11px;color:rgba(138,122,90,0.7);}
-
-#wallet-footer{
-  padding:10px 14px;
-  border-top:1px solid rgba(212,175,55,0.2);
-  flex-shrink:0;
-}
-#wallet-close{
-  width:100%;padding:10px;
-  background:rgba(155,27,48,0.15);
-  border:1.5px solid var(--ruby);
-  color:var(--ruby);border-radius:8px;
-  font-size:12px;font-weight:700;cursor:pointer;
-  transition:all 0.15s;
-  -webkit-transition:all 0.15s;
-}
-#wallet-close:active{transform:scale(0.97);}
 
 /* ── COMPACT SCREEN FIX (Chrome with address bar, small phones) ── */
 @media (max-height: 680px) {
@@ -971,77 +832,6 @@ body.desktop-gutter-b {
   padding: 4px; border-top: 1px solid rgba(212,175,55,0.15);
   line-height: 1.6;
 }
-
-/* ══════════════════════════════════════════════════════════════════════
-   CREATE VOUCHER MODAL
-   ══════════════════════════════════════════════════════════════════════ */
-#create-voucher-modal {
-  position: fixed; top:0;right:0;bottom:0;left:0;inset:0;
-  background: rgba(0,0,0,0.92);
-  display: none; align-items: center; justify-content: center;
-  z-index: 135; padding: 20px;
-}
-#create-voucher-modal.active { display: flex; }
-
-#cv-panel {
-  background: linear-gradient(180deg,#1a0d2e,#0d0818);
-  border: 2px solid var(--gold-dark);
-  border-radius: 14px;
-  padding: 24px 20px;
-  width: 100%; max-width: 320px;
-  text-align: center;
-}
-#cv-title {
-  font-family: var(--font-display);
-  font-size: 18px; color: var(--gold-light);
-  text-shadow: 0 0 12px var(--gold);
-  margin-bottom: 4px;
-}
-#cv-subtitle {
-  font-size: 11px; color: var(--text-dim); margin-bottom: 16px;
-}
-#cv-amount-input {
-  width: 100%; padding: 12px;
-  background: rgba(255,255,255,0.06);
-  border: 1.5px solid var(--gold-dark);
-  border-radius: 8px; color: var(--gold-light);
-  font-size: 22px; font-weight: 700;
-  text-align: center; outline: none;
-  font-family: var(--font-num);
-  box-sizing: border-box;
-}
-#cv-amount-input::placeholder { color: rgba(212,175,55,0.3); }
-#cv-buttons {
-  display: flex; gap: 10px; margin-top: 14px;
-}
-#cv-confirm {
-  flex: 1; padding: 12px;
-  background: linear-gradient(135deg,#1a4a0a,#0d2a05);
-  border: 2px solid #5cb800; color: #90ee20;
-  border-radius: 8px; font-size: 13px; font-weight: 900;
-  cursor: pointer; transition: all 0.15s;
-}
-#cv-confirm:active { transform: scale(0.96); }
-#cv-cancel {
-  flex: 1; padding: 12px;
-  background: rgba(155,27,48,0.15);
-  border: 1.5px solid var(--ruby); color: var(--ruby);
-  border-radius: 8px; font-size: 13px; font-weight: 700;
-  cursor: pointer; transition: all 0.15s;
-}
-#cv-cancel:active { transform: scale(0.96); }
-
-/* Create Voucher button in wallet */
-#create-voucher-btn {
-  flex: 1; padding: 10px;
-  background: linear-gradient(135deg,#1a2a0a,#0d1a05);
-  border: 2px solid #5cb800; color: #90ee20;
-  border-radius: 8px; font-size: 11px; font-weight: 900;
-  cursor: pointer; letter-spacing: 0.5px;
-  transition: all 0.15s;
-  -webkit-transition: all 0.15s;
-}
-#create-voucher-btn:active { transform: scale(0.96); }
 
 /* ══════════════════════════════════════════════════════════════════════
    DENOM DROPDOWN (replaces denom pills)

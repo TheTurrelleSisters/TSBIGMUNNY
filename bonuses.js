@@ -1004,10 +1004,16 @@ var Bonuses = {
     if (typeof UI !== 'undefined') {
       await UI.endPickChoose(prize, totalWon, awardRedSpin);
       UI.updateBalance(GameState.balance);
-      // Restore reels to P&C trigger position (shows 5-oak Lipstick briefly before returning)
-      if (callerContext.triggerStops && callerContext.triggerGrid) {
-        await UI.animateReelsStop(callerContext.triggerStops, callerContext.triggerGrid, false, false);
-      }
+      /* v8.3.9: the reel "restore" was REMOVED. It re-animated the reels back
+         to the trigger position after the bonus UI closed, so the reels
+         appeared to spin again and land on the 5-of-a-kind Lipstick line a
+         second time — players read that as the bonus re-triggering. The reels
+         were never changed while the bonus overlay was open, so there is
+         nothing to restore: closing the overlay already reveals the correct
+         trigger grid underneath. Exiting a completed Pick & Choose is now a
+         plain UI dismiss back to the base game.
+         Red Spin is unaffected — it legitimately re-animates the reels as part
+         of the feature itself (runRedSpin), and still does. */
     }
     logEvent('PICK_CHOOSE_END', { bonusType:'PICK_CHOOSE', prize: prize, totalWon: totalWon, awardRedSpin: awardRedSpin, matchCounts: matchCounts, balanceAfter:GameState.balance });
     GameState.activeBonus = null;
