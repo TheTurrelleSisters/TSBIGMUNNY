@@ -11,7 +11,7 @@
     // MANDATORY RULE: Update GAME_VERSION on every build alongside CACHE_NAME.
     // This is displayed on the splash screen and used for cache validation.
     // Never deliver a zip with a stale GAME_VERSION.
-    var GAME_VERSION = 'v8.5.0';
+    var GAME_VERSION = 'v8.5.1';
 
     // ── SPIN LOCK SAFETY NET ──────────────────────────────────────────
     // If executeSpin() throws an uncaught promise rejection, spinInProgress
@@ -84,7 +84,7 @@
 <meta name="format-detection" content="telephone=no">
 <title>The Turrelle Sisters Big Munny</title>
 <link rel="icon" href="assets/icons/icon-96x96.png">
-<link rel="stylesheet" href="style.css?v=8.5.0">
+<link rel="stylesheet" href="style.css?v=8.5.1">
 <style>
 /* ── INSERT CASH TO PLAY — reel overlay msg ── */
 #reels-insert-msg {
@@ -533,16 +533,16 @@ window.addEventListener('unhandledrejection', function(e) {
   } catch(e) {}
 }());
 </script>
-<script src="progressive.js?v=8.5.0"></script>
-<script src="wabc.js?v=8.5.0"></script>
-<script src="broadcast-init.js?v=8.5.0"></script>
-<script src="paytable.js?v=8.5.0"></script>
-<script src="state.js?v=8.5.0"></script>
-<script src="audio.js?v=8.5.0"></script>
-<script src="game.js?v=8.5.0"></script>
-<script src="bonuses.js?v=8.5.0"></script>
-<script src="ui.js?v=8.5.0"></script>
-<script src="operator.js?v=8.5.0"></script>
+<script src="progressive.js?v=8.5.1"></script>
+<script src="wabc.js?v=8.5.1"></script>
+<script src="broadcast-init.js?v=8.5.1"></script>
+<script src="paytable.js?v=8.5.1"></script>
+<script src="state.js?v=8.5.1"></script>
+<script src="audio.js?v=8.5.1"></script>
+<script src="game.js?v=8.5.1"></script>
+<script src="bonuses.js?v=8.5.1"></script>
+<script src="ui.js?v=8.5.1"></script>
+<script src="operator.js?v=8.5.1"></script>
 <script>
 /* ── WalletUI compatibility shim for TSBM (v8.2.7) ──
    wallet_module.js expects S.bal, updUI(), toast(), opLog(), sndCreditsAddUp().
@@ -588,8 +588,8 @@ function opLog(obj) {
 <script>/* localStorage key holding this game's offline credits — read once by
    wallet_module.migrateLocalCredits() and cleared after transfer. */
 window._LOCAL_BAL_KEY = 'turrelleSisters_v1';</script>
-<script src="wallet_module.js?v=8.5.0"></script>
-<script src="cashout.js?v=8.5.0"></script>
+<script src="wallet_module.js?v=8.5.1"></script>
+<script src="cashout.js?v=8.5.1"></script>
 
 <script>
 'use strict';
@@ -1075,12 +1075,32 @@ window.addEventListener('popstate', function(e) {
       }, 'lines');
     });
   }
+  /* v8.5.1: declared ahead of BOTH the BET MAX and SPIN handlers, since both
+     start spins and share this cooldown window. */
+  var SPIN_COOLDOWN_MS = 650;
+  var _lastSpinAt = 0;
+
   var _betMaxBtn = $('bet-max-btn');
   _bindTap(_betMaxBtn, 'BET MAX', function() {
-    /* v8.3.4: was silently ignored while the previous spin's animations were
-       still running. Now behaves like SPIN — clears them, then applies. */
+    /* v8.5.1: BET MAX now also SPINS — it is a max-bet-and-go button, the
+       standard slot behaviour. It sets 20 lines + the denom's locked
+       credits/line, rescales the jackpot seeds, then starts the spin.
+
+       It deliberately shares SPIN's cooldown and its 'spin' single-flight
+       key: both buttons start spins, so tapping one then the other must not
+       stack two spins (the v8.4.0 double-tap bug). The denomination is never
+       changed — BET MAX maxes the bet WITHIN the player's chosen denom. */
     if (GameState.activeBonus) return;
+
+    var nowBM = Date.now();
+    if (nowBM - _lastSpinAt < SPIN_COOLDOWN_MS) {
+      console.log('[tap] BET MAX ignored — spin cooldown (' + (nowBM - _lastSpinAt) + 'ms)');
+      return;
+    }
+    _lastSpinAt = nowBM;
+
     Audio.play('button_click');
+    _animationsSkipped = false;
     _whenIdle(function() {
       if (GameState.activeBonus) return;
       creditsPerLine = (typeof DENOM_CREDIT_LOCK !== 'undefined' && DENOM_CREDIT_LOCK[denom]) ? DENOM_CREDIT_LOCK[denom] : 5;
@@ -1088,7 +1108,9 @@ window.addEventListener('popstate', function(e) {
       applyScaledJackpotSeeds(denom, lines);
       UI.updateJackpotMeters();
       updateBetLine();
-    }, 'betmax');
+      _lastSpinAt = Date.now();   /* restart window from the actual spin */
+      doSpin();
+    }, 'spin');
   });
 
   // ── DENOM DROPDOWN ────────────────────────────────────────────────
@@ -1210,14 +1232,9 @@ window.addEventListener('popstate', function(e) {
     }());
   }
 
-  /* v8.4.0: spin cooldown. Single-flight alone was not enough — once the
-     first spin starts _idlePending clears, so a second tap could still queue
-     one more spin. A tap within SPIN_COOLDOWN_MS of the last accepted spin is
-     an accidental repeat and is dropped. Deliberate re-taps after the window
-     still work normally, and the FIRST tap is never delayed. */
-  var SPIN_COOLDOWN_MS = 650;
-  var _lastSpinAt = 0;
-
+  /* v8.4.0: spin cooldown — a tap within SPIN_COOLDOWN_MS of the last
+     accepted spin is an accidental repeat and is dropped. Shared with BET MAX
+     (v8.5.1) so the two spin-starting buttons cannot stack spins. */
   var _sb=$('spin-btn'); _bindTap(_sb, 'SPIN', function() {
     // Active bonus — ignore spin button
     if (GameState.activeBonus) return;
